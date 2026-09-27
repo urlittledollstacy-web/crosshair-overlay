@@ -92,7 +92,7 @@ Two things worth knowing:
 
 - It is evaluated per touch, against the windows containing that touch point. Only taps landing on
   the crosshair's own square are affected, not the whole screen.
-- Opacity has to be set on the **window** (`LayoutParams.alpha`), not the view. This app sets it on
+- Opacity has to be set on the **window** (`LayoutParams.alpha`), not the vie w. This app sets it on
   the window, so lowering the slider genuinely lowers what the system measures.
 
 **The workaround is max priority mode.** Accessibility overlays are trusted windows and are exempt
