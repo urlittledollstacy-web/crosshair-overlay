@@ -111,6 +111,28 @@ than broken: padding, `scaleType` and a background were all set, and `tintTiles`
 with `as?`, so a null one fails silently and nothing crashes. The factory sets the artwork, so a new
 surface cannot forget it.
 
+## Per-app auto-show
+
+`Prefs.shouldShowNow(foreground)` is the only place that decides whether the crosshair belongs
+on screen. Both renderers call it, so the normal overlay and the accessibility one can never
+disagree. Do not re-derive the rule from `prefs.visible` at a call site.
+
+It deliberately returns true for an empty target list and for an unknown foreground. A crosshair
+that fails to appear is worse than one that appears when it was not wanted, and the user can turn
+the feature off. Hiding on an unknown foreground would strand the crosshair permanently the first
+time usage access was missing or an OEM returned nothing.
+
+`AppWatcher` polls UsageStats on its own thread, because the query is a binder call and running
+it on the main thread would jank the overlay it exists to drive. It is gated on
+`prefs.autoShowEnabled`, so it costs nothing for anyone not using the feature. The foreground
+package goes on `Bridge`, so both renderers resolve one poll rather than running two.
+
+## OLED
+
+The page background is `#000000` on purpose, so those pixels are off. Surfaces step up in small
+increments from there. Keep new colors on the ramp in `colors.xml`: no surface is translucent, and
+nothing is a hardcoded hex outside that file.
+
 ## Centring a tile
 
 A thumbnail is centred on its own artwork, not on the origin. Thirty of the shapes are built

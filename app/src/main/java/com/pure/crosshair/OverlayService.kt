@@ -46,6 +46,7 @@ class OverlayService : Service(), ControlPanel.Callbacks {
     private var lastNotification = -1
     private var panel: ControlPanel? = null
     private var layer: CrosshairLayer? = null
+    private var watcher: AppWatcher? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -68,6 +69,16 @@ class OverlayService : Service(), ControlPanel.Callbacks {
 
         panel = ControlPanel(this, prefs, this)
         if (!prefs.buttonHidden) addButton()
+
+        // Started unconditionally, because whether it matters depends on a preference that can
+        // change at any moment. It does nothing until per-app auto-show is turned on.
+        watcher = AppWatcher(
+            context = this,
+            shouldPoll = { prefs.autoShowEnabled }
+        ) { pkg ->
+            Bridge.foreground = pkg
+            Bridge.refresh()
+        }.also { it.start() }
 
         // Refresh both renderers, not just ours, so a hand off to max priority mode
         // happens on the very first start rather than on the next settings change.
@@ -145,6 +156,9 @@ class OverlayService : Service(), ControlPanel.Callbacks {
         Bridge.maxPriority?.applyConfig()
         button?.let { v -> runCatching { wm.removeViewImmediate(v) } }
         button = null
+        watcher?.stop()
+        watcher = null
+        Bridge.foreground = null
         handler.removeCallbacksAndMessages(null)
         super.onDestroy()
     }
@@ -165,7 +179,7 @@ class OverlayService : Service(), ControlPanel.Callbacks {
                 it.onMoved = ::onCrosshairMoved
                 layer = it
             }
-            if (prefs.visible) current.show(prefs) else current.hide()
+            if (prefs.shouldShowNow(Bridge.foreground)) current.show(prefs) else current.hide()
         }
 
         updateNotification()

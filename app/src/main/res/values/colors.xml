@@ -1,25 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!--
-        Ink ramp: cool graphite surfaces, one desaturated accent taken from the sigil artwork.
+        Ink ramp on true black, for OLED.
 
-        Every surface here is fully opaque. The panel sits over live gameplay, and a
-        see-through panel is harder to read against a bright scene than a solid one. Controls
-        used to be translucent white over the surface, which meant the scene showed through
-        them; they are now solid steps of the ramp instead.
+        The page background is #000000 so those pixels are switched off: on OLED that is less
+        power, and the reticle reads against a genuinely black field instead of a lifted grey.
+        Surfaces above it step up in small increments rather than jumping, because the contrast
+        against pure black is what carries the hierarchy, not a bright fill.
+
+        Everything here is fully opaque. The panel sits over live gameplay, and a see-through
+        panel is harder to read against a bright scene than a solid one, so controls are solid
+        steps of the ramp rather than white at low alpha.
     -->
-    <color name="void_bg">#0B0C11</color>
-    <color name="surface">#11131B</color>
-    <color name="panel">#14161F</color>
+    <color name="void_bg">#000000</color>
+    <color name="surface">#0E0E11</color>
+    <color name="panel">#0A0A0C</color>
 
     <!-- Solid control fills. Steps up from the panel, not white at low alpha. -->
-    <color name="ghost">#1A1D28</color>
-    <color name="ghost_high">#232734</color>
-    <color name="raised">#20242F</color>
+    <color name="ghost">#141419</color>
+    <color name="ghost_high">#1C1C22</color>
+    <color name="raised">#1A1A20</color>
 
-    <!-- Hairlines and tracks. Solid so nothing shows through a control edge. -->
-    <color name="hairline">#2A2F3C</color>
-    <color name="track">#2E3441</color>
+    <!-- Hairlines and tracks. Kept off pure black so an edge still reads as an edge. -->
+    <color name="hairline">#24242C</color>
+    <color name="track">#2A2A33</color>
 
     <color name="accent">#C6A9F2</color>
     <color name="accent_pressed">#B494E6</color>
@@ -34,5 +38,5 @@
         The colour swatches. A well light enough that the black swatch still reads as a dot,
         and dark enough that the white one does too. It is opaque, like every other surface.
     -->
-    <color name="swatch_well">#3D4557</color>
+    <color name="swatch_well">#434B5E</color>
 </resources>

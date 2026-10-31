@@ -303,6 +303,15 @@ object Bridge {
     @Volatile
     var moveMode: Boolean = false
 
+    /**
+     * The package currently in front, or null when it is not known.
+     *
+     * Set by the watcher on [OverlayService]. Both renderers read it so per-app auto-show
+     * resolves from a single poll rather than two independent queries.
+     */
+    @Volatile
+    var foreground: String? = null
+
     /** Re-reads settings in whichever renderers are alive. */
     fun refresh() {
         overlay?.applyConfig()

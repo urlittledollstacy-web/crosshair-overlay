@@ -28,9 +28,10 @@
     <string name="off">Off</string>
     <string name="setup">Set up</string>
 
+    <string name="settings_title">Settings</string>
     <string name="howto_title">How it works</string>
     <string name="howto_1">Tap the floating sigil to open the tuning panel.</string>
-    <string name="howto_2">Drag the sigil anywhere; it snaps to the nearest edge.</string>
+    <string name="howto_2">Drag the sigil anywhere. Turn on edge snapping in Settings to have it spring back to the side.</string>
     <string name="howto_3">Long press it to show or hide the crosshair without opening anything.</string>
     <string name="footer">The crosshair is always click through, at every opacity including 100%. Taps land on the app underneath.</string>
 
@@ -78,9 +79,26 @@
 
     <!-- Crosshair picker -->
     <string name="card_crosshair">Crosshair</string>
-    <string name="crosshair_body">Thirty reticles, drawn sharp at any size. Pick one here, then tune it from the floating panel.</string>
+    <string name="crosshair_body">Thirty-five reticles, drawn sharp at any size. Pick one here, then tune it from the floating panel.</string>
     <string name="choose_crosshair">Choose crosshair</string>
     <string name="picker_title">Choose a crosshair</string>
     <string name="picker_done">Done</string>
     <string name="preview_description">Preview of the selected crosshair</string>
+
+    <!-- Per-app auto-show -->
+    <string name="card_auto">Show for chosen apps</string>
+    <string name="auto_body">Keep the crosshair hidden until one of the apps you pick is in front. Useful when you only want it in one game.</string>
+    <string name="auto_choose">Choose apps</string>
+    <string name="auto_none">No apps chosen</string>
+    <string name="auto_count">%1$d chosen</string>
+    <string name="auto_need_access_title">Usage access</string>
+    <string name="auto_need_access_body">Android only lets an app see which app is in front if you allow it. Nothing is read or stored beyond the package name of the app on screen, and it never leaves the phone.</string>
+    <string name="auto_grant_access">Allow usage access</string>
+    <string name="auto_access_granted">Allowed</string>
+    <string name="apps_title">Show the crosshair in</string>
+    <string name="apps_body">Tap an app to add or remove it. The crosshair appears only while one of these is in front.</string>
+    <string name="apps_search">Search apps</string>
+    <string name="apps_done">Done</string>
+    <string name="apps_empty">No apps found.</string>
+    <string name="apps_selected_count">%1$d selected</string>
 </resources>

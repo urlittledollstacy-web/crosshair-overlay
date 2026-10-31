@@ -74,7 +74,10 @@ class MaxPriorityService : AccessibilityService() {
     fun applyConfig() {
         if (!::prefs.isInitialized) prefs = Prefs(this)
 
-        val shouldDraw = prefs.maxPriority && prefs.visible && OverlayService.isRunning
+        // The same rule the normal renderer uses, so switching apps hides and shows the
+        // crosshair the same way whichever renderer happens to own it.
+        val shouldDraw = prefs.maxPriority && OverlayService.isRunning &&
+            prefs.shouldShowNow(Bridge.foreground)
         if (!shouldDraw) {
             layer?.hide()
             layer = null

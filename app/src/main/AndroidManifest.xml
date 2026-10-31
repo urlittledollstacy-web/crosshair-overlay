@@ -9,6 +9,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Reads which app is in front, for per-app auto-show. Optional and off by default. -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
+
     <!-- Optional: bring the overlay back after a reboot. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
@@ -32,6 +35,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".AppPickerActivity"
+            android:exported="false"
+            android:label="@string/apps_title"
+            android:parentActivityName=".MainActivity" />
 
         <service
             android:name=".OverlayService"

@@ -103,6 +103,45 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(KEY_BOOT, false)
         set(value) = sp.edit { putBoolean(KEY_BOOT, value) }
 
+    /**
+     * When on, the crosshair only appears while one of [autoShowPackages] is in front.
+     *
+     * Off by default, which is the old behaviour: the crosshair is up whenever [visible] is.
+     */
+    var autoShowEnabled: Boolean
+        get() = sp.getBoolean(KEY_AUTO_SHOW, false)
+        set(value) = sp.edit { putBoolean(KEY_AUTO_SHOW, value) }
+
+    /** Packages the crosshair should appear for. Only consulted when [autoShowEnabled]. */
+    var autoShowPackages: Set<String>
+        get() = sp.getStringSet(KEY_AUTO_PACKAGES, emptySet()).orEmpty()
+        set(value) = sp.edit { putStringSet(KEY_AUTO_PACKAGES, value) }
+
+    /**
+     * Whether the crosshair belongs on screen right now.
+     *
+     * The single rule both renderers consult, so the normal overlay and the accessibility one
+     * can never disagree about whether the crosshair should be up. [foreground] is the package
+     * currently in front, or null when it is not known.
+     *
+     * Two cases deliberately show rather than hide, because a crosshair that fails to appear is
+     * worse than one that appears when it was not wanted, and the user can always turn the
+     * feature off:
+     *
+     *  - an empty target list, which is what the feature looks like the moment it is switched on
+     *  - an unknown foreground, which is what a missing usage access grant or an OEM quirk
+     *    produces. Hiding here would leave the crosshair permanently gone with no visible cause.
+     */
+    fun shouldShowNow(foreground: String?): Boolean {
+        if (!visible) return false
+        if (!autoShowEnabled) return true
+        if (autoShowPackages.isEmpty()) return true
+        // Our own screens always keep it up, so the crosshair does not blink out of existence
+        // while the user is here choosing the apps.
+        if (foreground == app.packageName) return true
+        return foreground == null || foreground in autoShowPackages
+    }
+
     /** Render through the accessibility service so the crosshair outranks other overlays. */
     var maxPriority: Boolean
         get() = sp.getBoolean(KEY_MAX_PRIORITY, false)
@@ -137,5 +176,7 @@ class Prefs(context: Context) {
         private const val KEY_MAX_PRIORITY = "max_priority"
         private const val KEY_SNAP = "snap_button"
         private const val KEY_BTN_HIDDEN = "button_hidden"
+        private const val KEY_AUTO_SHOW = "auto_show"
+        private const val KEY_AUTO_PACKAGES = "auto_show_packages"
     }
 }

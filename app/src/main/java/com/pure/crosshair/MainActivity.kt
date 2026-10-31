@@ -70,6 +70,18 @@ class MainActivity : AppCompatActivity() {
             prefs.startOnBoot = !prefs.startOnBoot
             refresh()
         }
+        binding.btnAuto.setOnClickListener {
+            prefs.autoShowEnabled = !prefs.autoShowEnabled
+            // Turning it on is useless without usage access, so ask for it right away rather
+            // than letting the user pick apps that can never take effect.
+            if (prefs.autoShowEnabled && !AppWatcher.hasAccess(this)) requestUsageAccess()
+            Bridge.refresh()
+            refresh()
+        }
+        binding.btnAutoAccess.setOnClickListener { requestUsageAccess() }
+        binding.btnAutoChoose.setOnClickListener {
+            startActivity(Intent(this, AppPickerActivity::class.java))
+        }
     }
 
     override fun onResume() {
@@ -131,6 +143,51 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnBoot.isSelected = prefs.startOnBoot
         binding.btnBoot.setText(if (prefs.startOnBoot) R.string.on else R.string.off)
+
+        val autoOn = prefs.autoShowEnabled
+        binding.btnAuto.isSelected = autoOn
+        binding.btnAuto.setText(if (autoOn) R.string.on else R.string.off)
+
+        // The access row and the app list only mean anything with the toggle on.
+        binding.autoAccessGroup.visibility = if (autoOn) View.VISIBLE else View.GONE
+        binding.btnAutoChoose.visibility = if (autoOn) View.VISIBLE else View.GONE
+
+        if (autoOn) {
+            val allowed = AppWatcher.hasAccess(this)
+            binding.autoAccessState.text =
+                getString(if (allowed) R.string.auto_access_granted else R.string.perm_missing)
+            binding.autoAccessState.setTextColor(
+                ContextCompat.getColor(this, if (allowed) R.color.accent else R.color.danger)
+            )
+            binding.btnAutoAccess.visibility = if (allowed) View.GONE else View.VISIBLE
+            binding.autoAccessBody.visibility = if (allowed) View.GONE else View.VISIBLE
+
+            val count = prefs.autoShowPackages.size
+            binding.btnAutoChoose.text = if (count == 0) {
+                getString(R.string.auto_choose)
+            } else {
+                getString(R.string.auto_count, count)
+            }
+        }
+    }
+
+    /**
+     * Opens the system screen where usage access is granted.
+     *
+     * There is no runtime permission for this, so the only route is the settings screen. The
+     * extras point it at our package where the OEM honours them, and it degrades to the full
+     * list where they do not.
+     */
+    private fun requestUsageAccess() {
+        runCatching {
+            startActivity(
+                Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                    data = Uri.parse("package:$packageName")
+                }
+            )
+        }.recoverCatching {
+            startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+        }
     }
 
     private fun onPrimaryClicked() {

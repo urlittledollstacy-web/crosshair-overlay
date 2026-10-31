@@ -74,6 +74,18 @@ Open the folder in Android Studio and hit Run, or:
 
 The notification also carries Show/Hide and Stop actions.
 
+## Show the crosshair only in chosen apps
+
+Off by default. Turn it on from Settings, allow usage access, then pick the apps. The crosshair
+appears while one of them is in front and hides otherwise.
+
+Android only lets an app see which app is in front if the user grants usage access, so the app
+asks for it when the toggle is switched on. Nothing is read beyond the package name of the app on
+screen, and it never leaves the phone.
+
+If the foreground app cannot be determined, the crosshair stays visible rather than hiding. A
+crosshair that fails to appear is worse than one that appears when it was not wanted.
+
 ## Max priority mode
 
 Optional, off by default.
@@ -167,6 +179,7 @@ independent of the catalog, so adding a crosshair never changes the app icon.
 | `POST_NOTIFICATIONS` | The control notification. Denying it only costs you that notification |
 | `RECEIVE_BOOT_COMPLETED` | Only used if you turn on "Start after reboot" |
 | `VIBRATE` | Haptic tick on long press |
+| `PACKAGE_USAGE_STATS` | Only used by "Show for chosen apps", and only after you allow it in system settings |
 
 ## Hiding the floating button
 
