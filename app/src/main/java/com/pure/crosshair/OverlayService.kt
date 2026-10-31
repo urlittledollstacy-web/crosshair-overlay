@@ -41,6 +41,9 @@ class OverlayService : Service(), ControlPanel.Callbacks {
 
     private var button: ImageView? = null
     private var buttonParams: WindowManager.LayoutParams? = null
+
+    /** Last posted notification state, so identical ones are not re-posted. */
+    private var lastNotification = -1
     private var panel: ControlPanel? = null
     private var layer: CrosshairLayer? = null
 
@@ -79,8 +82,6 @@ class OverlayService : Service(), ControlPanel.Callbacks {
                 panel?.syncFromPrefs()
             }
 
-
-
             ACTION_TOGGLE_BUTTON -> {
                 setButtonHidden(!prefs.buttonHidden)
             }
@@ -106,7 +107,9 @@ class OverlayService : Service(), ControlPanel.Callbacks {
     }
 
     private fun reposition() {
-        val screen = screenSize()
+        // Must happen before any position is read, since offsets are keyed by orientation.
+        prefs.refreshMetrics()
+        val screen = prefs.screen
 
         button?.let { v ->
             buttonParams?.let { lp ->
@@ -280,6 +283,9 @@ class OverlayService : Service(), ControlPanel.Callbacks {
         lp: WindowManager.LayoutParams
     ): View.OnTouchListener {
         val slop = ViewConfiguration.get(this).scaledTouchSlop
+        // Cached once per gesture. Reading it per motion event went through the window manager
+        // binder, which is a lot of calls while dragging a button around.
+        var screen = screenSize()
         var downX = 0f
         var downY = 0f
         var startX = 0
@@ -298,6 +304,7 @@ class OverlayService : Service(), ControlPanel.Callbacks {
         return View.OnTouchListener { _, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    screen = screenSize()
                     downX = event.rawX
                     downY = event.rawY
                     startX = lp.x
@@ -321,7 +328,6 @@ class OverlayService : Service(), ControlPanel.Callbacks {
                         handler.removeCallbacks(longPress)
                     }
                     if (dragging) {
-                        val screen = screenSize()
                         lp.x = (startX + dx.toInt()).coerceIn(0, screen.x - lp.width)
                         lp.y = (startY + dy.toInt()).coerceIn(0, screen.y - lp.height)
                         runCatching { wm.updateViewLayout(view, lp) }
@@ -390,6 +396,7 @@ class OverlayService : Service(), ControlPanel.Callbacks {
     }
 
     private fun goForeground() {
+        lastNotification = (if (prefs.visible) 1 else 0) or (if (prefs.buttonHidden) 2 else 0)
         if (Build.VERSION.SDK_INT >= 34) {
             startForeground(
                 NOTIFICATION_ID,
@@ -401,7 +408,16 @@ class OverlayService : Service(), ControlPanel.Callbacks {
         }
     }
 
+    /**
+     * The notification only depends on whether the crosshair and the button are showing, but
+     * this runs from every slider tick. Rebuilding and re-posting an identical notification on
+     * each progress event is a binder call per frame for no visible change, so the last posted
+     * state is remembered and unchanged ones are dropped.
+     */
     private fun updateNotification() {
+        val signature = (if (prefs.visible) 1 else 0) or (if (prefs.buttonHidden) 2 else 0)
+        if (signature == lastNotification) return
+        lastNotification = signature
         getSystemService(NotificationManager::class.java)
             .notify(NOTIFICATION_ID, buildNotification())
     }

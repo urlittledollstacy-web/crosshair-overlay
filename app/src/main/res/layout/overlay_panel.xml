@@ -52,7 +52,7 @@
                     android:clickable="true"
                     android:contentDescription="@string/close"
                     android:focusable="true"
-                    android:padding="7dp"
+                    android:padding="8dp"
                     android:src="@drawable/ic_close" />
             </LinearLayout>
 

@@ -51,6 +51,9 @@ class ControlPanel(
     private var binding: OverlayPanelBinding? = null
     private var themed: Context? = null
 
+    /** One handler for the whole panel. The steppers used to create one each, never cleaned up. */
+    private val handler = Handler(Looper.getMainLooper())
+
     /** Guards against slider listeners firing while we push values in programmatically. */
     private var syncing = false
 
@@ -113,12 +116,16 @@ class ControlPanel(
         }
         b.panelRoot.requestFocus()
 
-        // The card holds a grid plus five sliders, so on a short screen it can outgrow the
+        // The card holds a strip plus five sliders, so on a short screen it can outgrow the
         // display. Once measured, cap the window and let the card scroll inside it.
-        b.panelRoot.post {
-            val cap = (context.screenSize().y * MAX_HEIGHT_FRACTION).toInt()
-            if (b.panelRoot.height > cap) {
-                lp.height = cap
+        //
+        // The cap is measured against the card, not the root: the root is the card plus its
+        // margins, so comparing the root against the cap left the panel taller than intended
+        // by exactly those margins.
+        b.panelCard.post {
+            val cap = (prefs.screen.y * MAX_HEIGHT_FRACTION).toInt()
+            if (b.panelCard.height > cap) {
+                lp.height = cap + b.panelRoot.height - b.panelCard.height
                 b.panelCard.layoutParams = (b.panelCard.layoutParams as FrameLayout.LayoutParams)
                     .apply { height = FrameLayout.LayoutParams.MATCH_PARENT }
                 runCatching { wm.updateViewLayout(b.panelRoot, lp) }
@@ -150,6 +157,7 @@ class ControlPanel(
     fun hide() {
         val b = binding ?: return
         binding = null
+        handler.removeCallbacksAndMessages(null)
         if (moveMode) setMoveMode(false, b)
         runCatching { wm.removeViewImmediate(b.panelRoot) }
     }
@@ -157,7 +165,7 @@ class ControlPanel(
     /** Called while the crosshair is dragged so the X/Y sliders keep up. */
     fun syncPosition() {
         val b = binding ?: return
-        val screen = context.screenSize()
+        val screen = prefs.screen
         syncing = true
         b.seekX.progress = (prefs.offsetX + screen.x / 2).coerceIn(0, screen.x)
         b.seekY.progress = (prefs.offsetY + screen.y / 2).coerceIn(0, screen.y)
@@ -168,7 +176,7 @@ class ControlPanel(
 
     fun syncFromPrefs() {
         val b = binding ?: return
-        val screen = context.screenSize()
+        val screen = prefs.screen
 
         syncing = true
         b.seekSize.max = SIZE_STEPS
@@ -249,8 +257,8 @@ class ControlPanel(
     /** The colour row: a ring per colour, filled with that colour. */
     private fun buildColors(b: OverlayPanelBinding) {
         val themed = this.themed ?: return
-        val slot = context.dp(32)
-        val fill = context.dp(20)
+        val slot = context.dp(36)
+        val fill = context.dp(26)
         val gap = context.dp(8)
 
         b.colorRow.removeAllViews()
@@ -292,10 +300,10 @@ class ControlPanel(
         for (i in 0 until b.colorRow.childCount) {
             b.colorRow.getChildAt(i).isSelected = i == colorIndex
         }
-        // Tiles are tinted at build time, so a colour change means redrawing them.
+        // Retint in place rather than rebuilding 35 drawables on every colour change.
         for (i in models.indices) {
-            (b.reticleRow.getChildAt(i) as? ImageView)
-                ?.setImageDrawable(models[i].drawable(prefs.crosshairColor))
+            ((b.reticleRow.getChildAt(i) as? ImageView)?.drawable as? CrosshairDrawable)
+                ?.setColor(prefs.crosshairColor)
         }
 
         // The header mark is the reticle you actually have selected, in the colour you
@@ -338,12 +346,12 @@ class ControlPanel(
         })
 
         b.seekX.setOnSeekBarChangeListener(onChange { value ->
-            prefs.offsetX = value - context.screenSize().x / 2
+            prefs.offsetX = value - prefs.screen.x / 2
             b.valueX.text = signed(prefs.offsetX)
         })
 
         b.seekY.setOnSeekBarChangeListener(onChange { value ->
-            prefs.offsetY = value - context.screenSize().y / 2
+            prefs.offsetY = value - prefs.screen.y / 2
             b.valueY.text = signed(prefs.offsetY)
         })
 
@@ -392,7 +400,6 @@ class ControlPanel(
      */
     @SuppressLint("ClickableViewAccessibility")
     private fun repeatWhileHeld(view: View, action: () -> Unit) {
-        val handler = Handler(Looper.getMainLooper())
         var pending: Runnable? = null
 
         view.setOnTouchListener { v, event ->
@@ -426,7 +433,7 @@ class ControlPanel(
     }
 
     private fun nudgeX(b: OverlayPanelBinding, delta: Int) {
-        val half = context.screenSize().x / 2
+        val half = prefs.screen.x / 2
         prefs.offsetX = (prefs.offsetX + delta).coerceIn(-half, half)
         syncing = true
         b.seekX.progress = prefs.offsetX + half
@@ -436,7 +443,7 @@ class ControlPanel(
     }
 
     private fun nudgeY(b: OverlayPanelBinding, delta: Int) {
-        val half = context.screenSize().y / 2
+        val half = prefs.screen.y / 2
         prefs.offsetY = (prefs.offsetY + delta).coerceIn(-half, half)
         syncing = true
         b.seekY.progress = prefs.offsetY + half

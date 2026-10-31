@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -228,19 +227,15 @@ class MainActivity : AppCompatActivity() {
         }
         tintTiles(tiles)
 
-        dialogBinding.colorRow.post {
-            buildColorSwatches(dialogBinding, tiles)
-        }
-        if (dialogBinding.colorRow.childCount == 0) buildColorSwatches(dialogBinding, tiles)
+        buildColorSwatches(dialogBinding, tiles)
 
         dialog.show()
     }
 
+    /** Retints the existing tiles in place instead of rebuilding 35 drawables. */
     private fun tintTiles(tiles: List<View>) {
-        tiles.forEachIndexed { i, v ->
-            (v as? ImageView)?.setImageDrawable(
-                CrosshairCatalog.all[i].drawable(prefs.crosshairColor)
-            )
+        tiles.forEach { v ->
+            ((v as? ImageView)?.drawable as? CrosshairDrawable)?.setColor(prefs.crosshairColor)
         }
     }
 
@@ -250,7 +245,7 @@ class MainActivity : AppCompatActivity() {
         tiles: List<View>
     ) {
         val slot = dp(36)
-        val fill = dp(22)
+        val fill = dp(26)
         val gap = dp(8)
         b.colorRow.removeAllViews()
 
@@ -277,9 +272,10 @@ class MainActivity : AppCompatActivity() {
             swatch.addView(
                 View(this).apply {
                     layoutParams = FrameLayout.LayoutParams(fill, fill, Gravity.CENTER)
-                    background = GradientDrawable().apply {
-                        shape = GradientDrawable.OVAL
-                        setColor(color)
+                    background = ContextCompat.getDrawable(
+                        this@MainActivity, R.drawable.bg_swatch_fill
+                    )?.mutate()?.apply {
+                        setTint(color)
                     }
                 }
             )

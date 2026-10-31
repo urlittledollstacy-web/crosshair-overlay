@@ -69,11 +69,17 @@ object CrosshairCatalog {
 
     val default: Crosshair = all.first()
 
-    fun byId(id: String?): Crosshair? = all.firstOrNull { it.id == id }
+    /**
+     * Indexed by id. [byId] is read on every frame of a drag and on every settings read, and a
+     * linear scan over the catalog showed up in that path.
+     */
+    private val byId: Map<String, Crosshair> = all.associateBy { it.id }
+
+    fun byId(id: String?): Crosshair? = if (id == null) null else byId[id]
 
     fun name(id: String?): String = byId(id)?.name ?: default.name
 
-    fun isValid(id: String?): Boolean = byId(id) != null
+    fun isValid(id: String?): Boolean = id != null && byId.containsKey(id)
 }
 
 /**
@@ -108,17 +114,38 @@ object CrosshairColors {
  * gives it. Stroke width is a ratio of the size, so a crosshair keeps its proportions at every
  * scale instead of turning into a blob when it is blown up.
  */
-class CrosshairDrawable(private val model: Crosshair, private val color: Int) : Drawable() {
+class CrosshairDrawable(private val model: Crosshair, color: Int) : Drawable() {
 
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
+        this.color = color
     }
 
-    private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        this.color = color
+    }
+
+    /**
+     * One Path for the lifetime of this drawable.
+     *
+     * Every primitive used to build a fresh Path, and the picker strip draws 35 of these per
+     * frame while scrolling, so the allocator was doing a few hundred short-lived Paths a
+     * frame. Reusing one is safe because drawing happens on the main thread only.
+     */
+    private val path = Path()
 
     private var alphaValue = 255
+
+    /** Retints in place, so a colour change does not rebuild every tile's drawable. */
+    fun setColor(color: Int) {
+        if (stroke.color == color) return
+        stroke.color = color
+        fill.color = color
+        invalidateSelf()
+    }
 
     override fun draw(canvas: Canvas) {
         val b = bounds
@@ -127,8 +154,6 @@ class CrosshairDrawable(private val model: Crosshair, private val color: Int) : 
         val size = minOf(b.width(), b.height()).toFloat()
         if (size <= 0f) return
 
-        stroke.color = color
-        fill.color = color
         stroke.alpha = alphaValue
         fill.alpha = alphaValue
         stroke.strokeWidth = (size * STROKE_RATIO).coerceAtLeast(1.2f)
@@ -137,7 +162,9 @@ class CrosshairDrawable(private val model: Crosshair, private val color: Int) : 
         // rescaled per reticle. Without this a dot would draw at a fifth the footprint of a
         // scope at the same size setting, and the picker grid would look uneven.
         val unit = size * 0.5f * INNER * (TARGET_EXTENT / CrosshairArt.extentOf(model.id))
-        CrosshairArt.draw(canvas, model.id, stroke, fill, unit, b.exactCenterX(), b.exactCenterY())
+        CrosshairArt.draw(
+            canvas, model.id, stroke, fill, path, unit, b.exactCenterX(), b.exactCenterY()
+        )
     }
 
     override fun setAlpha(alpha: Int) {
@@ -220,6 +247,7 @@ private object CrosshairArt {
         id: String,
         stroke: Paint,
         fill: Paint,
+        path: Path,
         u: Float,
         cx: Float,
         cy: Float
@@ -229,27 +257,27 @@ private object CrosshairArt {
 
         /** Stroked polyline through flat (x, y) pairs. */
         fun line(vararg pts: Float) {
-            val p = Path()
-            p.moveTo(x(pts[0]), y(pts[1]))
+            path.reset()
+            path.moveTo(x(pts[0]), y(pts[1]))
             var i = 2
             while (i < pts.size) {
-                p.lineTo(x(pts[i]), y(pts[i + 1]))
+                path.lineTo(x(pts[i]), y(pts[i + 1]))
                 i += 2
             }
-            canvas.drawPath(p, stroke)
+            canvas.drawPath(path, stroke)
         }
 
         /** Filled polygon through flat (x, y) pairs. */
         fun poly(vararg pts: Float) {
-            val p = Path()
-            p.moveTo(x(pts[0]), y(pts[1]))
+            path.reset()
+            path.moveTo(x(pts[0]), y(pts[1]))
             var i = 2
             while (i < pts.size) {
-                p.lineTo(x(pts[i]), y(pts[i + 1]))
+                path.lineTo(x(pts[i]), y(pts[i + 1]))
                 i += 2
             }
-            p.close()
-            canvas.drawPath(p, fill)
+            path.close()
+            canvas.drawPath(path, fill)
         }
 
         /** Filled axis aligned rectangle. */

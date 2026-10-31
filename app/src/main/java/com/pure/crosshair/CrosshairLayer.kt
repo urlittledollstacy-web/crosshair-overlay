@@ -3,7 +3,6 @@ package com.pure.crosshair
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.PixelFormat
-import android.graphics.drawable.Drawable
 import android.os.Build
 import android.view.Gravity
 import android.view.MotionEvent
@@ -33,7 +32,14 @@ class CrosshairLayer(
     /** What is currently drawn, so slider drags do not rebuild the artwork. */
     private var loadedId: String? = null
     private var loadedColor: Int = 0
-    private var loadedDrawable: Drawable? = null
+    private var loadedDrawable: CrosshairDrawable? = null
+
+    /** Last values pushed to the window, so an unchanged update is skipped entirely. */
+    private var lastX = Int.MIN_VALUE
+    private var lastY = Int.MIN_VALUE
+    private var lastSide = -1
+    private var lastAlpha = -1f
+    private var lastFlags = -1
 
     /** Called with the new centre offset while the crosshair is being dragged. */
     var onMoved: ((x: Int, y: Int) -> Unit)? = null
@@ -53,29 +59,54 @@ class CrosshairLayer(
         val p = params ?: return
 
         val side = context.dp(prefs.sizeDp)
+        val x = prefs.offsetX
+        val y = prefs.offsetY
+        val alpha = prefs.opacity / 100f
+        val flags = flags(clickThrough = !draggable)
+
+        val model = CrosshairCatalog.byId(prefs.selected) ?: CrosshairCatalog.default
+        val color = prefs.crosshairColor
+
+        // Nothing changed, so nothing to redraw and no layout pass to ask for. This is the
+        // common case: a colour or opacity change touches one field, and a repeated refresh
+        // from the app should not cost a window update at all.
+        val sameArt = loadedId == model.id && loadedColor == color
+        if (sameArt && side == lastSide && x == lastX && y == lastY &&
+            alpha == lastAlpha && flags == lastFlags
+        ) {
+            return
+        }
+
+        if (!sameArt) {
+            if (loadedDrawable != null && loadedId == model.id) {
+                // Same reticle, new colour: retint in place instead of rebuilding the drawable.
+                loadedDrawable?.setColor(color)
+            } else {
+                val drawable = CrosshairDrawable(model, color)
+                loadedDrawable = drawable
+                v.setImageDrawable(drawable)
+            }
+            loadedId = model.id
+            loadedColor = color
+        }
+
         p.width = side
         p.height = side
-        p.x = prefs.offsetX
-        p.y = prefs.offsetY
-        p.flags = flags(clickThrough = !draggable)
+        p.x = x
+        p.y = y
+        p.flags = flags
 
         // Window level alpha, deliberately not View.setAlpha or ImageView.imageAlpha.
         // Android 12+ measures the *window* alpha when deciding whether a click-through
         // overlay is obscuring the app below. A view level fade looks identical on screen
         // but leaves the window at alpha 1.0, so taps would get blocked at every setting.
-        p.alpha = prefs.opacity / 100f
+        p.alpha = alpha
 
-        val model = CrosshairCatalog.byId(prefs.selected) ?: CrosshairCatalog.default
-        if (loadedId != model.id || loadedColor != prefs.crosshairColor) {
-            val drawable = model.drawable(prefs.crosshairColor)
-            loadedDrawable = drawable
-            v.setImageDrawable(drawable)
-            loadedId = model.id
-            loadedColor = prefs.crosshairColor
-        }
-        // The window itself stays fully opaque; opacity is applied through the window alpha
-        // above, so the artwork never has to be re-rendered just to fade it.
-        loadedDrawable?.alpha = 255
+        lastSide = side
+        lastX = x
+        lastY = y
+        lastAlpha = alpha
+        lastFlags = flags
 
         runCatching { wm.updateViewLayout(v, p) }
     }
@@ -85,7 +116,13 @@ class CrosshairLayer(
         view = null
         params = null
         loadedId = null
+        loadedColor = 0
         loadedDrawable = null
+        lastSide = -1
+        lastX = Int.MIN_VALUE
+        lastY = Int.MIN_VALUE
+        lastAlpha = -1f
+        lastFlags = -1
     }
 
     /**
@@ -99,11 +136,8 @@ class CrosshairLayer(
 
         if (!enabled) {
             v.setOnTouchListener(null)
-            v.animate().alpha(1f).setDuration(120).start()
             return
         }
-
-        v.animate().alpha(1f).setDuration(120).start()
 
         var startX = 0
         var startY = 0
@@ -171,8 +205,9 @@ class CrosshairLayer(
             .onSuccess {
                 view = image
                 params = lp
-                image.alpha = 0f
-                image.animate().alpha(1f).setDuration(160).start()
+                // Window alpha is driven by the opacity setting, so the view alpha stays at 1.
+                // A view-level fade here would be overwritten by the next update anyway.
+                image.alpha = 1f
             }
     }
 

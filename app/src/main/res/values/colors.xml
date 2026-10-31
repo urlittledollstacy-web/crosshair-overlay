@@ -1,9 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Ink ramp: cool graphite surfaces, one desaturated accent taken from the sigil artwork. -->
+    <!--
+        Ink ramp: cool graphite surfaces, one desaturated accent taken from the sigil artwork.
+
+        Every surface here is fully opaque. The panel sits over live gameplay, and a
+        see-through panel is harder to read against a bright scene than a solid one. Controls
+        used to be translucent white over the surface, which meant the scene showed through
+        them; they are now solid steps of the ramp instead.
+    -->
     <color name="void_bg">#0B0C11</color>
     <color name="surface">#11131B</color>
-    <color name="panel">#F011131B</color>
+    <color name="panel">#14161F</color>
+
+    <!-- Solid control fills. Steps up from the panel, not white at low alpha. -->
+    <color name="ghost">#1A1D28</color>
+    <color name="ghost_high">#232734</color>
+    <color name="raised">#20242F</color>
+
+    <!-- Hairlines and tracks. Solid so nothing shows through a control edge. -->
+    <color name="hairline">#2A2F3C</color>
+    <color name="track">#2E3441</color>
 
     <color name="accent">#C6A9F2</color>
     <color name="accent_pressed">#B494E6</color>
@@ -14,9 +30,9 @@
     <color name="muted">#97A1B4</color>
     <color name="danger">#E06B79</color>
 
-    <color name="hairline">#14FFFFFF</color>
-    <color name="track">#1FFFFFFF</color>
-    <color name="ghost">#14FFFFFF</color>
-    <color name="ghost_high">#22FFFFFF</color>
-    <color name="raised">#1FFFFFFF</color>
+    <!--
+        The colour swatches. A well light enough that the black swatch still reads as a dot,
+        and dark enough that the white one does too. It is opaque, like every other surface.
+    -->
+    <color name="swatch_well">#3D4557</color>
 </resources>

@@ -115,6 +115,10 @@ So:
 The panel shows a warning under the opacity slider whenever your current combination would get
 taps blocked. Nothing is capped — the choice stays yours.
 
+This is about the *crosshair's* opacity, and it is the one place a fade is wanted. Everything
+else in the app is fully opaque: the panel, the picker and the controls are solid surfaces, not
+tinted glass, so nothing behind them shows through while you tune.
+
 ### What no overlay can do
 
 Worth knowing before you file a bug:

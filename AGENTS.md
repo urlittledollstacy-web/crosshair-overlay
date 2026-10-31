@@ -78,6 +78,35 @@ nothing on screen can catch a stray tap. It is the only floating way into the pa
 escape hatches must keep working: `OverlayService.openPanel()` from the main screen, and the
 notification action that toggles it back. The notification text names the hidden state.
 
+## Opacity
+
+The crosshair's opacity is a feature, set on the **window** (`LayoutParams.alpha`) rather than the
+view, because Android 12+ measures the window when deciding whether a click-through overlay is
+obscuring the app below. See the README for the 80% rule.
+
+Everything else is opaque. The panel, the dialog and every control fill are solid steps of the ink
+ramp, not translucent white. Do not reintroduce alpha fills: a see-through panel over gameplay is
+harder to read than a solid one, and it was explicitly disliked.
+
+Contrast is checked against the solid surfaces, not an assumed backdrop. Worst pair is ~5.2:1
+(danger on a pill), which clears AA for body text.
+
+## Performance rules
+
+This is an overlay that runs over games, so it has to stay cheap.
+
+- **No allocation in `draw`.** `CrosshairDrawable` owns one `Path` and reuses it. The reticle strip
+  draws 35 of them per frame; allocating a `Path` per primitive was the main source of jank.
+- **No binder calls on input.** `Context.screenSize()` goes through `WindowManager` and is a binder
+  call. `Prefs` caches it in `metrics`; read `prefs.screen`, and call `refreshMetrics()` only on a
+  configuration change. Sliders, drags and nudges all used to call it per event.
+- **Skip unchanged work.** `CrosshairLayer.update()` compares against the last applied values and
+  returns early; `updateNotification()` skips identical posts. A slider tick should not cost a
+  window update or a notification.
+- **Retint, do not rebuild.** `CrosshairDrawable.setColor()` changes the paint in place, so a colour
+  change does not rebuild 35 drawables.
+- **One handler per component**, cleared in teardown. The steppers used to create a handler each.
+
 ## Conventions
 
 - Design tokens are one ink ramp in `res/values/colors.xml`; no gradients.

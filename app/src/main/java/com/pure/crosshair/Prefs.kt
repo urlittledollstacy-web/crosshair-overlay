@@ -1,6 +1,7 @@
 package com.pure.crosshair
 
 import android.content.Context
+import android.graphics.Point
 import androidx.core.content.edit
 
 /**
@@ -13,6 +14,25 @@ class Prefs(context: Context) {
     private val sp = app.getSharedPreferences("crosshair", Context.MODE_PRIVATE)
 
     /**
+     * Screen size, cached.
+     *
+     * Reading it goes through WindowManager#getCurrentWindowMetrics, which is a binder call.
+     * Every offset and button position is keyed by orientation, so a crosshair drag used to
+     * trigger several of those per motion event, hundreds per second. Callers refresh this
+     * once on a configuration change instead.
+     */
+    @Volatile
+    private var metrics: Point = app.screenSize()
+
+    /** Current screen size in pixels. Never goes through the binder. */
+    val screen: Point get() = metrics
+
+    /** Re-reads the screen size. Call on configuration change, before reading positions. */
+    fun refreshMetrics() {
+        metrics = app.screenSize()
+    }
+
+    /**
      * Positions are stored per orientation. A pixel offset that centres the crosshair nicely in
      * portrait points somewhere else entirely once width and height swap, so landscape gets its
      * own set of values rather than inheriting broken ones.
@@ -21,10 +41,7 @@ class Prefs(context: Context) {
      * Configuration attached to a Service context is not always current at the moment we read it.
      */
     private val orientation: String
-        get() {
-            val size = app.screenSize()
-            return if (size.x > size.y) "_land" else "_port"
-        }
+        get() = if (metrics.x > metrics.y) "_land" else "_port"
 
     /** Id of the selected crosshair in [CrosshairCatalog]. Unknown ids fall back to the default. */
     var selected: String

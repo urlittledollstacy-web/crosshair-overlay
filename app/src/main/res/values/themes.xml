@@ -18,8 +18,11 @@
         <item name="colorAccent">@color/accent</item>
         <item name="android:textColorPrimary">@color/text</item>
         <item name="android:textColorSecondary">@color/muted</item>
-        <item name="android:background">@color/surface</item>
-        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:colorBackground">@color/surface</item>
+        <!-- Solid, not transparent: the dialog sits over live gameplay and a see-through
+             card is hard to read against a bright scene. -->
+        <item name="android:windowBackground">@drawable/bg_dialog</item>
+        <item name="android:windowIsTranslucent">false</item>
     </style>
 
     <!-- Used for views inflated by the service, which has no activity theme of its own. -->
