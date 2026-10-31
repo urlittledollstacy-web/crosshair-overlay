@@ -58,6 +58,26 @@ parse the `when (id)` branches and replay the draw calls, then check each tile f
 ink coverage, bounding box and edge clearance. That is what caught the bowtie and
 the two wrong extents.
 
+## Panel
+
+`ControlPanel` is a window, not an activity, so the app underneath stays visible while you
+line the crosshair up. `overlay_panel.xml` backs it.
+
+- The reticles are **one scrolling strip**, not a grid. A grid of all 35 tiles was 392dp
+  tall, taller than every other control together, so the sliders fell below the fold.
+- The header mark is the selected reticle, drawn live in the selected colour. Keep it that
+  way: it is the panel's one moment of showing the product rather than describing it.
+- Vertical rhythm groups by section: 4 between a label and its slider, 12 to a new control,
+  20 to a new section. Keep space inside a group smaller than space between groups.
+- The panel is titled `Overlay`, because `Crosshair` repeated the label right below it.
+
+## Hiding the floating button
+
+`prefs.buttonHidden` removes the button window outright rather than making it transparent, so
+nothing on screen can catch a stray tap. It is the only floating way into the panel, so the
+escape hatches must keep working: `OverlayService.openPanel()` from the main screen, and the
+notification action that toggles it back. The notification text names the hidden state.
+
 ## Conventions
 
 - Design tokens are one ink ramp in `res/values/colors.xml`; no gradients.
