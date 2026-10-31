@@ -48,6 +48,26 @@ class CrosshairLayer(
 
     val isAttached: Boolean get() = view != null
 
+    /**
+     * Hides this crosshair while the tuning panel is up, but only for the renderer that the
+     * panel cannot outrank.
+     *
+     * TYPE_ACCESSIBILITY_OVERLAY is 2032 and TYPE_APPLICATION_OVERLAY is 2038, and the lower
+     * number sits on top. That ranking is the whole point of max priority mode, but it also meant
+     * the crosshair was painted over our own panel and hid the reticle strip and the controls.
+     * The normal renderer shares the panel's type and is added first, so it already sits
+     * correctly behind the panel and stays visible while you tune.
+     *
+     * State comes from [Bridge] rather than a field here, because a layer is created lazily:
+     * switching max priority on builds a new one, and it has to know the panel is already open.
+     */
+    private fun applySuppression() {
+        val v = view ?: return
+        val hidden = Bridge.suppressed && windowType == ACCESSIBILITY_OVERLAY
+        val wanted = if (hidden) View.INVISIBLE else View.VISIBLE
+        if (v.visibility != wanted) v.visibility = wanted
+    }
+
     /** Adds the window if needed, then pushes the current settings into it. */
     fun show(prefs: Prefs) {
         if (view == null) attach()
@@ -66,6 +86,10 @@ class CrosshairLayer(
 
         val model = CrosshairCatalog.byId(prefs.selected) ?: CrosshairCatalog.default
         val color = prefs.crosshairColor
+
+        // Before the early return below: whether the panel is up is independent of the window
+        // values, so a suppression change must not be skipped as "nothing changed".
+        applySuppression()
 
         // Nothing changed, so nothing to redraw and no layout pass to ask for. This is the
         // common case: a colour or opacity change touches one field, and a repeated refresh
@@ -208,6 +232,8 @@ class CrosshairLayer(
                 // Window alpha is driven by the opacity setting, so the view alpha stays at 1.
                 // A view-level fade here would be overwritten by the next update anyway.
                 image.alpha = 1f
+                // The panel may already be open when this renderer takes the crosshair over.
+                applySuppression()
             }
     }
 
@@ -240,6 +266,27 @@ object Bridge {
     var maxPriority: MaxPriorityService? = null
 
     val maxPriorityConnected: Boolean get() = maxPriority != null
+
+    /**
+     * True while the tuning panel is up.
+     *
+     * The crosshair steps aside for the duration. In max priority mode it is an accessibility
+     * overlay, which outranks the panel's window, so it would otherwise be painted over the
+     * reticle strip and the controls.
+     *
+     * This lives here rather than in either service because a layer can be created at any time:
+     * turning max priority on hands the crosshair to a brand new layer, and that layer has to
+     * know the panel is already open.
+     */
+    @Volatile
+    var panelOpen: Boolean = false
+
+    /** Move mode needs the crosshair on screen even with the panel open. */
+    @Volatile
+    var moveMode: Boolean = false
+
+    /** True when the crosshair should currently be hidden behind the panel. */
+    val suppressed: Boolean get() = panelOpen && !moveMode
 
     /** Re-reads settings in whichever renderers are alive. */
     fun refresh() {

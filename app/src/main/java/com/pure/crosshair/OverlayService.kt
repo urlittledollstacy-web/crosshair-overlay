@@ -134,6 +134,9 @@ class OverlayService : Service(), ControlPanel.Callbacks {
     override fun onDestroy() {
         isRunning = false
         Bridge.overlay = null
+        // Leaving this set would keep the crosshair hidden for the next session.
+        Bridge.panelOpen = false
+        Bridge.moveMode = false
         panel?.hide()
         layer?.hide()
         layer = null
@@ -199,6 +202,9 @@ class OverlayService : Service(), ControlPanel.Callbacks {
     }
 
     override fun onMoveModeChanged(enabled: Boolean) {
+        // Move mode needs the crosshair on screen even with the panel open, so it clears the
+        // suppression rather than fighting it.
+        Bridge.moveMode = enabled
         activeLayer()?.let { l ->
             l.setDraggable(enabled)
             l.update(prefs)
@@ -207,6 +213,24 @@ class OverlayService : Service(), ControlPanel.Callbacks {
 
     override fun onStopRequested() {
         stopSelf()
+    }
+
+    /**
+     * The panel opened or closed.
+     *
+     * The crosshair has to step aside while it is up. In max priority mode it is an
+     * accessibility overlay, which outranks the panel's own window, so it would otherwise be
+     * painted over the reticle strip and the controls. In normal mode the two windows share a
+     * type and the panel wins only because it was added later, which is fragile, so the
+     * crosshair steps aside either way.
+     *
+     * Both renderers are told: either one may be the one currently drawing.
+     */
+    override fun onPanelVisibilityChanged(visible: Boolean) {
+        // State goes on the Bridge so a layer created later picks it up, then both renderers are
+        // refreshed: either one may be the one currently drawing the crosshair.
+        Bridge.panelOpen = visible
+        Bridge.refresh()
     }
 
     private fun activeLayer(): CrosshairLayer? =

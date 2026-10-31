@@ -45,6 +45,15 @@ class ControlPanel(
 
         /** The user asked to shut the overlay down. */
         fun onStopRequested()
+
+        /**
+         * The panel opened or closed.
+         *
+         * In max priority mode the crosshair is an accessibility overlay, which outranks the
+         * panel's own window, so it has to step aside while the panel is up or it covers the
+         * reticle strip and the controls.
+         */
+        fun onPanelVisibilityChanged(visible: Boolean)
     }
 
     private val wm = context.windowManager()
@@ -114,6 +123,7 @@ class ControlPanel(
             binding = null
             return
         }
+        callbacks.onPanelVisibilityChanged(true)
         b.panelRoot.requestFocus()
 
         // The card holds a strip plus five sliders, so on a short screen it can outgrow the
@@ -160,6 +170,7 @@ class ControlPanel(
         handler.removeCallbacksAndMessages(null)
         if (moveMode) setMoveMode(false, b)
         runCatching { wm.removeViewImmediate(b.panelRoot) }
+        callbacks.onPanelVisibilityChanged(false)
     }
 
     /** Called while the crosshair is dragged so the X/Y sliders keep up. */
@@ -240,7 +251,7 @@ class ControlPanel(
                 layoutParams = LinearLayout.LayoutParams(cell, cell).also { it.marginEnd = gap }
                 setPadding(context.dp(8), context.dp(8), context.dp(8), context.dp(8))
                 scaleType = ImageView.ScaleType.FIT_CENTER
-                setImageDrawable(model.drawable(prefs.crosshairColor))
+                setImageDrawable(model.drawable(prefs.crosshairColor, thumbnail = true))
                 background = context.getDrawable(R.drawable.bg_thumb)
                 isSelected = model.id == prefs.selected
                 contentDescription = model.name
@@ -310,7 +321,7 @@ class ControlPanel(
         // actually chose. It is the one place the panel shows the product rather than
         // describing it, and it updates as you change either.
         val model = CrosshairCatalog.byId(prefs.selected) ?: CrosshairCatalog.default
-        b.panelMark.setImageDrawable(model.drawable(prefs.crosshairColor))
+        b.panelMark.setImageDrawable(model.drawable(prefs.crosshairColor, thumbnail = true))
         b.valueCrosshair.text = model.name
     }
 

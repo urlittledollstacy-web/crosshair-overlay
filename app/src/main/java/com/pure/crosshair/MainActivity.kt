@@ -103,8 +103,8 @@ class MainActivity : AppCompatActivity() {
 
         binding.crosshairName.text = CrosshairCatalog.name(prefs.selected)
         binding.crosshairPreview.setImageDrawable(
-            CrosshairCatalog.byId(prefs.selected)?.drawable(prefs.crosshairColor)
-                ?: CrosshairCatalog.default.drawable(prefs.crosshairColor)
+            CrosshairCatalog.byId(prefs.selected)?.drawable(prefs.crosshairColor, thumbnail = true)
+                ?: CrosshairCatalog.default.drawable(prefs.crosshairColor, thumbnail = true)
         )
 
         binding.statusLine.setText(if (running) R.string.running else R.string.not_running)

@@ -21,7 +21,15 @@ data class Crosshair(
     val name: String,
     val group: String
 ) {
-    fun drawable(color: Int): Drawable = CrosshairDrawable(this, color)
+    /**
+     * A drawable for this reticle.
+     *
+     * [thumbnail] picks the rendering intent. A thumbnail is read at 32dp in the picker, where
+     * crisp pixels cost a third of the ink and thin shapes turn to dust, so it always smooths.
+     * The aiming reticle is the opposite: it must be solid at 100% opacity.
+     */
+    fun drawable(color: Int, thumbnail: Boolean = false): Drawable =
+        CrosshairDrawable(this, color, thumbnail)
 }
 
 /** The built-in crosshairs, in the order the picker shows them. */
@@ -115,7 +123,11 @@ object CrosshairColors {
  * gives it. Stroke width is a ratio of the size, so a crosshair keeps its proportions at every
  * scale instead of turning into a blob when it is blown up.
  */
-class CrosshairDrawable(private val model: Crosshair, color: Int) : Drawable() {
+class CrosshairDrawable(
+    private val model: Crosshair,
+    color: Int,
+    private val thumbnail: Boolean = false
+) : Drawable() {
 
     private val stroke = Paint().apply {
         style = Paint.Style.STROKE
@@ -160,14 +172,17 @@ class CrosshairDrawable(private val model: Crosshair, color: Int) : Drawable() {
 
         // Anti-aliasing is the transparency. An anti-aliased edge pixel is a blend of the
         // crosshair colour and whatever is behind it, which is literally partial alpha, and on
-        // a two pixel line the "edge" is most of the line: measured, only 8% of a small reticle
-        // reached full opacity, so it read as see-through at every setting.
+        // a two pixel line the "edge" is most of the line: measured, only 13% of a small
+        // reticle reached full opacity, so it read as see-through at every setting.
         //
-        // At 100% the reticle is meant to be solid, so smoothing is off and every inked pixel
-        // is the pure colour. Below 100% the fade is the feature, so smoothing goes back on to
-        // keep the curve of the rings clean. AA is per paint, so the picker tiles, the header
-        // mark and the overlay all follow whichever the slider is on.
-        val smoothing = alphaValue != 255
+        // So the aiming reticle turns smoothing off at 100% and every drawn pixel is the pure
+        // colour. Below 100% the fade is the feature, so smoothing comes back to keep the
+        // curve of the rings clean.
+        //
+        // Thumbnails are the opposite trade. At 32dp crisp rendering drops 13-33% of the ink,
+        // which turns the thin shapes (brackets, gaps, squares) ragged or near invisible, and
+        // a picker tile is read rather than aimed over. They always smooth.
+        val smoothing = thumbnail || alphaValue != 255
         stroke.isAntiAlias = smoothing
         fill.isAntiAlias = smoothing
 

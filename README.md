@@ -86,6 +86,11 @@ Turn it on from the main screen; Android will send you to Accessibility settings
 "Crosshair max priority". The service draws the crosshair and nothing else: it does not read
 screen content, does not observe input, and collects nothing. Everything works without it.
 
+The crosshair is hidden while the tuning panel is open, in this mode only. The accessibility layer
+sits above the panel's own window — that ranking is exactly what makes the mode work — so without
+that it would be painted over the reticle strip and the controls. Move mode is the exception: the
+crosshair stays visible so you can drag it while the panel is up.
+
 ## The 100% opacity catch
 
 Android 12 (API 31) blocks touches that pass through an overlay window belonging to another app

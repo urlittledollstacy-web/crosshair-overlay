@@ -78,6 +78,44 @@ nothing on screen can catch a stray tap. It is the only floating way into the pa
 escape hatches must keep working: `OverlayService.openPanel()` from the main screen, and the
 notification action that toggles it back. The notification text names the hidden state.
 
+## Window ranking, and the panel
+
+`TYPE_ACCESSIBILITY_OVERLAY` is **2032** and `TYPE_APPLICATION_OVERLAY` is **2038**, and the lower
+number sits on top. That ordering is the entire reason max priority mode exists: the accessibility
+crosshair keeps its place above other floating apps.
+
+It also means the crosshair outranks **our own** panel, which is a `TYPE_APPLICATION_OVERLAY`. So in
+max priority mode the crosshair was painted over the panel and hid the reticle strip and the
+controls. In normal mode both windows share a type, and the panel wins only because it is added
+later, so the normal renderer stays visible behind the panel while you tune.
+
+The accessibility renderer therefore hides itself while the panel is open
+(`CrosshairLayer.applySuppression`), keyed off `Bridge.suppressed`. Move mode overrides it, because
+dragging the crosshair with the panel open is the point of that mode.
+
+Put this kind of state on `Bridge`, not on a service. Layers are created lazily — switching max
+priority on builds a brand new one — so anything a fresh layer needs to know has to outlive the
+service that created it.
+
+**Any new window the app adds must be ranked against these two.** A new panel or dialog built as a
+`TYPE_APPLICATION_OVERLAY` will be covered by the crosshair in max priority mode, the same way the
+old panel was.
+
+## Thumbnails versus the aiming reticle
+
+`CrosshairDrawable` takes a `thumbnail` flag, and it is not cosmetic. The two contexts want opposite
+things:
+
+- **Aiming reticle** (`thumbnail = false`): must be fully opaque at 100%, so anti-aliasing is off
+  there. Crisp pixels are the point.
+- **Thumbnail** (`thumbnail = true`, used by the panel strip, the header mark and the app preview):
+  always smooths. At the 32dp tile size crisp rendering drops 16% of the ink overall and up to a
+  third on the thin shapes (brackets, gaps, squares), which makes them ragged or near invisible. A
+  tile is read, not aimed over.
+
+Turning AA off for everything was the bug that made the menu icons look broken. Keep the flag on any
+new menu or preview call site.
+
 ## Anti-aliasing is the transparency
 
 The crosshair is stroked line art, and **anti-aliasing is literally partial alpha**: an edge pixel
