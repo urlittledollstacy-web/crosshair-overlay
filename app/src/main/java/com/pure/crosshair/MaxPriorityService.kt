@@ -19,6 +19,7 @@ import android.view.accessibility.AccessibilityEvent
 class MaxPriorityService : AccessibilityService() {
 
     private lateinit var prefs: Prefs
+    private val handler = Handler(Looper.getMainLooper())
 
     var layer: CrosshairLayer? = null
         private set
@@ -31,12 +32,24 @@ class MaxPriorityService : AccessibilityService() {
         Bridge.refresh()
     }
 
-    /** Same rotation problem as OverlayService: reload the offsets for the new orientation. */
+    /**
+     * Same rotation problem as OverlayService: reload the offsets for the new orientation.
+     * One handler for the life of the service rather than a new one per rotation, and the
+     * callbacks are cleared on teardown.
+     */
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        val handler = Handler(Looper.getMainLooper())
-        handler.post { applyConfig() }
-        handler.postDelayed({ applyConfig() }, 350L)
+        handler.removeCallbacksAndMessages(null)
+        // applyConfig() initialises prefs itself, so refresh the metrics after it has run
+        // rather than touching a lateinit field that may not be set yet.
+        handler.post { refreshAndApply() }
+        handler.postDelayed({ refreshAndApply() }, ROTATION_SETTLE_MS)
+    }
+
+    private fun refreshAndApply() {
+        if (!::prefs.isInitialized) prefs = Prefs(this)
+        prefs.refreshMetrics()
+        applyConfig()
     }
 
     override fun onUnbind(intent: android.content.Intent?): Boolean {
@@ -50,6 +63,7 @@ class MaxPriorityService : AccessibilityService() {
     }
 
     private fun release() {
+        handler.removeCallbacksAndMessages(null)
         layer?.hide()
         layer = null
         Bridge.maxPriority = null
@@ -60,8 +74,10 @@ class MaxPriorityService : AccessibilityService() {
     fun applyConfig() {
         if (!::prefs.isInitialized) prefs = Prefs(this)
 
-        val hasImage = Library(this).file(prefs.selected) != null
-        val shouldDraw = prefs.maxPriority && prefs.visible && hasImage && OverlayService.isRunning
+        // The same rule the normal renderer uses, so switching apps hides and shows the
+        // crosshair the same way whichever renderer happens to own it.
+        val shouldDraw = prefs.maxPriority && OverlayService.isRunning &&
+            prefs.shouldShowNow(Bridge.foreground)
         if (!shouldDraw) {
             layer?.hide()
             layer = null
@@ -82,4 +98,9 @@ class MaxPriorityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit
 
     override fun onInterrupt() = Unit
+
+    private companion object {
+        /** Grace period for the display metrics to update after a rotation. */
+        const val ROTATION_SETTLE_MS = 350L
+    }
 }

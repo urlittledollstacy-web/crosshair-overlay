@@ -10,13 +10,19 @@
         <item name="colorAccent">@color/accent</item>
     </style>
 
-    <!-- ImportActivity exists only to host the system file picker, so it draws nothing. -->
-    <style name="Theme.Crosshair.Invisible" parent="Theme.AppCompat.NoActionBar">
-        <item name="android:windowBackground">@android:color/transparent</item>
-        <item name="android:windowIsTranslucent">true</item>
-        <item name="android:windowContentOverlay">@null</item>
-        <item name="android:windowAnimationStyle">@null</item>
-        <item name="android:backgroundDimEnabled">false</item>
+    <!--
+        The picker dialog. Without an explicit dark parent the platform builds a light
+        AlertDialog, which would land as a white slab on the dark app.
+    -->
+    <style name="Theme.Crosshair.Dialog" parent="Theme.AppCompat.Dialog.Alert">
+        <item name="colorAccent">@color/accent</item>
+        <item name="android:textColorPrimary">@color/text</item>
+        <item name="android:textColorSecondary">@color/muted</item>
+        <item name="android:colorBackground">@color/surface</item>
+        <!-- Solid, not transparent: the dialog sits over live gameplay and a see-through
+             card is hard to read against a bright scene. -->
+        <item name="android:windowBackground">@drawable/bg_dialog</item>
+        <item name="android:windowIsTranslucent">false</item>
     </style>
 
     <!-- Used for views inflated by the service, which has no activity theme of its own. -->
@@ -25,31 +31,43 @@
         <item name="android:textColorSecondary">@color/muted</item>
     </style>
 
-    <!-- Tracked uppercase micro-labels, like a scope readout. -->
+    <!-- Quiet field labels, sentence case. -->
     <style name="Label">
         <item name="android:textColor">@color/muted</item>
-        <item name="android:textSize">11sp</item>
-        <item name="android:textAllCaps">true</item>
-        <item name="android:letterSpacing">0.16</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:letterSpacing">0</item>
         <item name="android:fontFamily">sans-serif-medium</item>
         <item name="android:includeFontPadding">false</item>
     </style>
 
+    <!-- Live figures, set in mono so they read like instrument values. -->
     <style name="Readout">
-        <item name="android:textColor">@color/ice</item>
+        <item name="android:textColor">@color/readout</item>
         <item name="android:textSize">13sp</item>
         <item name="android:fontFamily">monospace</item>
         <item name="android:includeFontPadding">false</item>
     </style>
 
+    <!-- The small -/+ nudges that sit either side of a slider. -->
+    <style name="Step">
+        <item name="android:layout_width">36dp</item>
+        <item name="android:layout_height">36dp</item>
+        <item name="android:background">@drawable/bg_step</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textColor">@color/text</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+    </style>
+
     <style name="Pill">
-        <item name="android:layout_height">42dp</item>
+        <item name="android:layout_height">40dp</item>
         <item name="android:gravity">center</item>
         <item name="android:background">@drawable/bg_pill</item>
         <item name="android:textColor">@color/text</item>
-        <item name="android:textSize">12sp</item>
-        <item name="android:textAllCaps">true</item>
-        <item name="android:letterSpacing">0.10</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:letterSpacing">0</item>
         <item name="android:fontFamily">sans-serif-medium</item>
         <item name="android:clickable">true</item>
         <item name="android:focusable">true</item>
@@ -57,12 +75,12 @@
 
     <style name="Slider">
         <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">34dp</item>
+        <item name="android:layout_height">36dp</item>
         <item name="android:progressDrawable">@drawable/seek_track</item>
         <item name="android:thumb">@drawable/seek_thumb</item>
         <item name="android:splitTrack">false</item>
-        <item name="android:maxHeight">6dp</item>
-        <item name="android:minHeight">6dp</item>
+        <item name="android:maxHeight">4dp</item>
+        <item name="android:minHeight">4dp</item>
         <item name="android:paddingStart">4dp</item>
         <item name="android:paddingEnd">4dp</item>
     </style>

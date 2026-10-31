@@ -1,6 +1,7 @@
 package com.pure.crosshair
 
 import android.content.Context
+import android.graphics.Point
 import androidx.core.content.edit
 
 /**
@@ -13,6 +14,25 @@ class Prefs(context: Context) {
     private val sp = app.getSharedPreferences("crosshair", Context.MODE_PRIVATE)
 
     /**
+     * Screen size, cached.
+     *
+     * Reading it goes through WindowManager#getCurrentWindowMetrics, which is a binder call.
+     * Every offset and button position is keyed by orientation, so a crosshair drag used to
+     * trigger several of those per motion event, hundreds per second. Callers refresh this
+     * once on a configuration change instead.
+     */
+    @Volatile
+    private var metrics: Point = app.screenSize()
+
+    /** Current screen size in pixels. Never goes through the binder. */
+    val screen: Point get() = metrics
+
+    /** Re-reads the screen size. Call on configuration change, before reading positions. */
+    fun refreshMetrics() {
+        metrics = app.screenSize()
+    }
+
+    /**
      * Positions are stored per orientation. A pixel offset that centres the crosshair nicely in
      * portrait points somewhere else entirely once width and height swap, so landscape gets its
      * own set of values rather than inheriting broken ones.
@@ -21,15 +41,19 @@ class Prefs(context: Context) {
      * Configuration attached to a Service context is not always current at the moment we read it.
      */
     private val orientation: String
-        get() {
-            val size = app.screenSize()
-            return if (size.x > size.y) "_land" else "_port"
-        }
+        get() = if (metrics.x > metrics.y) "_land" else "_port"
 
-    /** File name of the selected image in [Library]. Empty when nothing is imported yet. */
+    /** Id of the selected crosshair in [CrosshairCatalog]. Unknown ids fall back to the default. */
     var selected: String
         get() = sp.getString(KEY_SELECTED, "").orEmpty()
+            .takeIf { CrosshairCatalog.isValid(it) }
+            ?: CrosshairCatalog.default.id
         set(value) = sp.edit { putString(KEY_SELECTED, value) }
+
+    /** Colour the crosshair is drawn in, as ARGB. */
+    var crosshairColor: Int
+        get() = sp.getInt(KEY_COLOR, CrosshairColors.default)
+        set(value) = sp.edit { putInt(KEY_COLOR, value) }
 
     /** Crosshair edge length in dp. */
     var sizeDp: Int
@@ -62,6 +86,14 @@ class Prefs(context: Context) {
         get() = sp.getInt(KEY_BTN_Y + orientation, Int.MIN_VALUE)
         set(value) = sp.edit { putInt(KEY_BTN_Y + orientation, value) }
 
+    /**
+     * Hides the floating button so a stray tap cannot open the panel mid-game. The panel is
+     * then reachable from the notification and from the main screen, and both say so.
+     */
+    var buttonHidden: Boolean
+        get() = sp.getBoolean(KEY_BTN_HIDDEN, false)
+        set(value) = sp.edit { putBoolean(KEY_BTN_HIDDEN, value) }
+
     /** When off, the floating button stays wherever it is dropped, including mid screen. */
     var snapButtonToEdge: Boolean
         get() = sp.getBoolean(KEY_SNAP, false)
@@ -70,6 +102,45 @@ class Prefs(context: Context) {
     var startOnBoot: Boolean
         get() = sp.getBoolean(KEY_BOOT, false)
         set(value) = sp.edit { putBoolean(KEY_BOOT, value) }
+
+    /**
+     * When on, the crosshair only appears while one of [autoShowPackages] is in front.
+     *
+     * Off by default, which is the old behaviour: the crosshair is up whenever [visible] is.
+     */
+    var autoShowEnabled: Boolean
+        get() = sp.getBoolean(KEY_AUTO_SHOW, false)
+        set(value) = sp.edit { putBoolean(KEY_AUTO_SHOW, value) }
+
+    /** Packages the crosshair should appear for. Only consulted when [autoShowEnabled]. */
+    var autoShowPackages: Set<String>
+        get() = sp.getStringSet(KEY_AUTO_PACKAGES, emptySet()).orEmpty()
+        set(value) = sp.edit { putStringSet(KEY_AUTO_PACKAGES, value) }
+
+    /**
+     * Whether the crosshair belongs on screen right now.
+     *
+     * The single rule both renderers consult, so the normal overlay and the accessibility one
+     * can never disagree about whether the crosshair should be up. [foreground] is the package
+     * currently in front, or null when it is not known.
+     *
+     * Two cases deliberately show rather than hide, because a crosshair that fails to appear is
+     * worse than one that appears when it was not wanted, and the user can always turn the
+     * feature off:
+     *
+     *  - an empty target list, which is what the feature looks like the moment it is switched on
+     *  - an unknown foreground, which is what a missing usage access grant or an OEM quirk
+     *    produces. Hiding here would leave the crosshair permanently gone with no visible cause.
+     */
+    fun shouldShowNow(foreground: String?): Boolean {
+        if (!visible) return false
+        if (!autoShowEnabled) return true
+        if (autoShowPackages.isEmpty()) return true
+        // Our own screens always keep it up, so the crosshair does not blink out of existence
+        // while the user is here choosing the apps.
+        if (foreground == app.packageName) return true
+        return foreground == null || foreground in autoShowPackages
+    }
 
     /** Render through the accessibility service so the crosshair outranks other overlays. */
     var maxPriority: Boolean
@@ -86,13 +157,14 @@ class Prefs(context: Context) {
 
     companion object {
         // Wide range on purpose: a 4dp aiming dot and a near full screen reticle are both
-        // legitimate uses, and imported artwork varies enormously in how much padding it has.
+        // legitimate uses, and every reticle is normalised to the same footprint.
         const val MIN_SIZE = 4
         const val MAX_SIZE = 1200
         const val DEFAULT_SIZE = 96
         const val MIN_OPACITY = 5
 
         private const val KEY_SELECTED = "selected"
+        private const val KEY_COLOR = "crosshair_color"
         private const val KEY_SIZE = "size_dp"
         private const val KEY_OPACITY = "opacity"
         private const val KEY_X = "offset_x"
@@ -103,5 +175,8 @@ class Prefs(context: Context) {
         private const val KEY_BOOT = "start_on_boot"
         private const val KEY_MAX_PRIORITY = "max_priority"
         private const val KEY_SNAP = "snap_button"
+        private const val KEY_BTN_HIDDEN = "button_hidden"
+        private const val KEY_AUTO_SHOW = "auto_show"
+        private const val KEY_AUTO_PACKAGES = "auto_show_packages"
     }
 }

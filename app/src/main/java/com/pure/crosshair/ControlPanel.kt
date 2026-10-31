@@ -3,6 +3,7 @@ package com.pure.crosshair
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -13,11 +14,11 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.TextView
-import android.widget.Toast
 import android.widget.SeekBar
+import android.widget.TextView
 import com.pure.crosshair.databinding.OverlayPanelBinding
 import kotlin.math.ln
 import kotlin.math.pow
@@ -39,20 +40,28 @@ class ControlPanel(
         /** A value changed and the crosshair needs redrawing. */
         fun onConfigChanged()
 
-        /** The user tapped the import tile. */
-        fun onImportRequested()
-
         /** Move mode was switched on or off. */
         fun onMoveModeChanged(enabled: Boolean)
 
         /** The user asked to shut the overlay down. */
         fun onStopRequested()
+
+        /**
+         * The panel opened or closed.
+         *
+         * In max priority mode the crosshair is an accessibility overlay, which outranks the
+         * panel's own window, so it has to step aside while the panel is up or it covers the
+         * reticle strip and the controls.
+         */
+        fun onPanelVisibilityChanged(visible: Boolean)
     }
 
     private val wm = context.windowManager()
-    private val library = Library(context)
     private var binding: OverlayPanelBinding? = null
     private var themed: Context? = null
+
+    /** One handler for the whole panel. The steppers used to create one each, never cleaned up. */
+    private val handler = Handler(Looper.getMainLooper())
 
     /** Guards against slider listeners firing while we push values in programmatically. */
     private var syncing = false
@@ -86,6 +95,7 @@ class ControlPanel(
         }
 
         buildPicker(b)
+        buildColors(b)
         wireControls(b)
         syncFromPrefs()
 
@@ -113,7 +123,35 @@ class ControlPanel(
             binding = null
             return
         }
+        callbacks.onPanelVisibilityChanged(true)
         b.panelRoot.requestFocus()
+
+        // The card holds a strip plus five sliders, so on a short screen it can outgrow the
+        // display. Once measured, cap the window and let the card scroll inside it.
+        //
+        // The cap is measured against the card, not the root: the root is the card plus its
+        // margins, so comparing the root against the cap left the panel taller than intended
+        // by exactly those margins.
+        b.panelCard.post {
+            val cap = (prefs.screen.y * MAX_HEIGHT_FRACTION).toInt()
+            if (b.panelCard.height > cap) {
+                lp.height = cap + b.panelRoot.height - b.panelCard.height
+                b.panelCard.layoutParams = (b.panelCard.layoutParams as FrameLayout.LayoutParams)
+                    .apply { height = FrameLayout.LayoutParams.MATCH_PARENT }
+                runCatching { wm.updateViewLayout(b.panelRoot, lp) }
+            }
+        }
+
+        b.reticleScroll.post {
+            val index = CrosshairCatalog.all.indexOfFirst { it.id == prefs.selected }
+            val child = b.reticleRow.getChildAt(index)
+            if (child != null) {
+                b.reticleScroll.scrollTo(
+                    (child.left - b.reticleScroll.width / 2 + child.width / 2).coerceAtLeast(0),
+                    0
+                )
+            }
+        }
 
         b.panelCard.post {
             b.panelCard.translationY = b.panelCard.height.toFloat()
@@ -124,21 +162,21 @@ class ControlPanel(
                 .setDuration(200)
                 .start()
         }
-
-        scrollPickerToSelection(b)
     }
 
     fun hide() {
         val b = binding ?: return
         binding = null
+        handler.removeCallbacksAndMessages(null)
         if (moveMode) setMoveMode(false, b)
         runCatching { wm.removeViewImmediate(b.panelRoot) }
+        callbacks.onPanelVisibilityChanged(false)
     }
 
     /** Called while the crosshair is dragged so the X/Y sliders keep up. */
     fun syncPosition() {
         val b = binding ?: return
-        val screen = context.screenSize()
+        val screen = prefs.screen
         syncing = true
         b.seekX.progress = (prefs.offsetX + screen.x / 2).coerceIn(0, screen.x)
         b.seekY.progress = (prefs.offsetY + screen.y / 2).coerceIn(0, screen.y)
@@ -149,7 +187,7 @@ class ControlPanel(
 
     fun syncFromPrefs() {
         val b = binding ?: return
-        val screen = context.screenSize()
+        val screen = prefs.screen
 
         syncing = true
         b.seekSize.max = SIZE_STEPS
@@ -194,89 +232,89 @@ class ControlPanel(
 
     // ---------------------------------------------------------------- internals
 
-    /** Called after an import or delete so the strip reflects the library. */
-    fun reloadLibrary() {
-        val b = binding ?: return
-        buildPicker(b)
-        syncFromPrefs()
-    }
-
+    /**
+     * The reticle strip.
+     *
+     * One scrolling row rather than a grid. A grid of all 35 tiles was taller than every other
+     * control put together, which pushed the sliders below the fold and made the panel read as
+     * a wall of thumbnails instead of a tuning surface.
+     */
     private fun buildPicker(b: OverlayPanelBinding) {
         val themed = this.themed ?: return
-        val cell = context.dp(48)
-        val gap = context.dp(6)
-        val pad = context.dp(6)
+        val gap = context.dp(8)
+        val cell = context.dp(RETICLE_CELL_DP)
 
-        b.pickerRow.removeAllViews()
+        b.reticleRow.removeAllViews()
 
-        // Import tile always sits first, so there is a way in even when the library is empty.
-        val add = TextView(themed).apply {
-            layoutParams = LinearLayout.LayoutParams(cell, cell).also { it.marginEnd = gap }
-            text = "+"
-            gravity = Gravity.CENTER
-            textSize = 22f
-            setTextColor(context.getColor(R.color.accent))
-            setBackgroundResource(R.drawable.bg_thumb)
-            contentDescription = context.getString(R.string.import_image)
-            setOnClickListener { callbacks.onImportRequested() }
-        }
-        b.pickerRow.addView(add)
-
-        val images = library.list()
-        b.pickerEmpty.visibility = if (images.isEmpty()) View.VISIBLE else View.GONE
-
-        for (file in images) {
-            val bitmap = Library.decode(file, Library.THUMB_PX) ?: continue
-            val thumb = ImageView(themed).apply {
-                layoutParams = LinearLayout.LayoutParams(cell, cell).also { it.marginEnd = gap }
-                setPadding(pad, pad, pad, pad)
-                setImageBitmap(bitmap)
-                setBackgroundResource(R.drawable.bg_thumb)
-                scaleType = ImageView.ScaleType.FIT_CENTER
-                isSelected = file.name == prefs.selected
-                contentDescription = context.getString(R.string.imported_crosshair)
-                setOnClickListener {
-                    prefs.selected = file.name
+        for (model in CrosshairCatalog.all) {
+            b.reticleRow.addView(
+                model.thumbnailTile(themed, prefs.crosshairColor, cell, gap, model.id == prefs.selected) {
+                    prefs.selected = model.id
                     updatePickerSelection(b)
                     callbacks.onConfigChanged()
                 }
-                setOnLongClickListener {
-                    removeImage(file.name)
-                    true
-                }
-            }
-            b.pickerRow.addView(thumb)
+            )
         }
     }
 
-    /** Long press deletes. The original file on the device is untouched. */
-    private fun removeImage(name: String) {
-        val fallback = library.neighbourOf(name)
-        library.delete(name)
-        if (prefs.selected == name) prefs.selected = fallback.orEmpty()
-        Toast.makeText(context, R.string.crosshair_removed, Toast.LENGTH_SHORT).show()
-        reloadLibrary()
-        callbacks.onConfigChanged()
+    /** The colour row: a ring per colour, filled with that colour. */
+    private fun buildColors(b: OverlayPanelBinding) {
+        val themed = this.themed ?: return
+        val slot = context.dp(36)
+        val fill = context.dp(26)
+        val gap = context.dp(8)
+
+        b.colorRow.removeAllViews()
+
+        for ((name, color) in CrosshairColors.all) {
+            val swatch = FrameLayout(themed).apply {
+                layoutParams = LinearLayout.LayoutParams(slot, slot).also { it.marginEnd = gap }
+                background = context.getDrawable(R.drawable.bg_swatch_slot)
+                isSelected = color == prefs.crosshairColor
+                contentDescription = name
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    prefs.crosshairColor = color
+                    updatePickerSelection(b)
+                    callbacks.onConfigChanged()
+                }
+            }
+            swatch.addView(
+                View(themed).apply {
+                    layoutParams = FrameLayout.LayoutParams(fill, fill, Gravity.CENTER)
+                    background = GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(color)
+                    }
+                }
+            )
+            b.colorRow.addView(swatch)
+        }
     }
 
     private fun updatePickerSelection(b: OverlayPanelBinding) {
-        val images = library.list()
-        // Child 0 is the import tile, so image i lives at child i + 1.
-        for (i in images.indices) {
-            b.pickerRow.getChildAt(i + 1)?.isSelected = images[i].name == prefs.selected
+        val models = CrosshairCatalog.all
+        for (i in models.indices) {
+            b.reticleRow.getChildAt(i)?.isSelected = models[i].id == prefs.selected
         }
-    }
+        // Swatches sit in the same order as the palette, so index lookup is enough.
+        val colorIndex = CrosshairColors.all.indexOfFirst { it.second == prefs.crosshairColor }
+        for (i in 0 until b.colorRow.childCount) {
+            b.colorRow.getChildAt(i).isSelected = i == colorIndex
+        }
+        // Retint in place rather than rebuilding 35 drawables on every colour change.
+        for (i in models.indices) {
+            ((b.reticleRow.getChildAt(i) as? ImageView)?.drawable as? CrosshairDrawable)
+                ?.setColor(prefs.crosshairColor)
+        }
 
-    private fun scrollPickerToSelection(b: OverlayPanelBinding) {
-        b.pickerScroll.post {
-            val index = library.list().indexOfFirst { it.name == prefs.selected }
-            if (index < 0) return@post
-            val child = b.pickerRow.getChildAt(index + 1) ?: return@post
-            b.pickerScroll.smoothScrollTo(
-                child.left - b.pickerScroll.width / 2 + child.width / 2,
-                0
-            )
-        }
+        // The header mark is the reticle you actually have selected, in the colour you
+        // actually chose. It is the one place the panel shows the product rather than
+        // describing it, and it updates as you change either.
+        val model = CrosshairCatalog.byId(prefs.selected) ?: CrosshairCatalog.default
+        b.panelMark.setImageDrawable(model.drawable(prefs.crosshairColor, thumbnail = true))
+        b.valueCrosshair.text = model.name
     }
 
     private fun wireControls(b: OverlayPanelBinding) {
@@ -311,12 +349,12 @@ class ControlPanel(
         })
 
         b.seekX.setOnSeekBarChangeListener(onChange { value ->
-            prefs.offsetX = value - context.screenSize().x / 2
+            prefs.offsetX = value - prefs.screen.x / 2
             b.valueX.text = signed(prefs.offsetX)
         })
 
         b.seekY.setOnSeekBarChangeListener(onChange { value ->
-            prefs.offsetY = value - context.screenSize().y / 2
+            prefs.offsetY = value - prefs.screen.y / 2
             b.valueY.text = signed(prefs.offsetY)
         })
 
@@ -365,7 +403,6 @@ class ControlPanel(
      */
     @SuppressLint("ClickableViewAccessibility")
     private fun repeatWhileHeld(view: View, action: () -> Unit) {
-        val handler = Handler(Looper.getMainLooper())
         var pending: Runnable? = null
 
         view.setOnTouchListener { v, event ->
@@ -399,7 +436,7 @@ class ControlPanel(
     }
 
     private fun nudgeX(b: OverlayPanelBinding, delta: Int) {
-        val half = context.screenSize().x / 2
+        val half = prefs.screen.x / 2
         prefs.offsetX = (prefs.offsetX + delta).coerceIn(-half, half)
         syncing = true
         b.seekX.progress = prefs.offsetX + half
@@ -409,7 +446,7 @@ class ControlPanel(
     }
 
     private fun nudgeY(b: OverlayPanelBinding, delta: Int) {
-        val half = context.screenSize().y / 2
+        val half = prefs.screen.y / 2
         prefs.offsetY = (prefs.offsetY + delta).coerceIn(-half, half)
         syncing = true
         b.seekY.progress = prefs.offsetY + half
@@ -446,6 +483,12 @@ class ControlPanel(
         /** Slider resolution. Combined with the log curve this is well under 1dp per step
          *  through the range people actually use. */
         private const val SIZE_STEPS = 1000
+
+        /** Reticle tile edge in the strip. */
+        private const val RETICLE_CELL_DP = 48
+
+        /** Tallest the panel may get before the card starts scrolling. */
+        private const val MAX_HEIGHT_FRACTION = 0.86f
 
         private const val REPEAT_FIRST_MS = 380L
         private const val REPEAT_MIN_MS = 35L

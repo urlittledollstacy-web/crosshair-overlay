@@ -6,8 +6,10 @@ using, and it never takes a tap — even at 100% opacity.
 - **Always click through.** The crosshair window carries `FLAG_NOT_TOUCHABLE`, so touches land on
   the app underneath at every opacity setting. It is a purely visual layer.
 - **Floating control button.** A draggable sigil sits on top of everything. Tap it to tune
-  position, size and opacity live, without leaving the app you are in.
-- **35 bundled crosshairs**, sliced from the source sheet. Swappable for your own PNGs.
+  reticle, colour, position, size and opacity live, without leaving the app you are in. It can
+  be hidden if you keep catching it mid-game.
+- **35 built-in crosshairs**, drawn as vectors so they stay sharp at any size. Pick one from
+the panel or from the picker in the app; no image files to import.
 - **Minimum Android 8.0** (API 26).
 
 ---
@@ -63,11 +65,26 @@ Open the folder in Android Studio and hit Run, or:
 | Tap the floating sigil | Opens the tuning panel |
 | Drag the floating sigil | Moves it; it snaps to the nearest edge |
 | Long press the floating sigil | Shows or hides the crosshair |
+| Hide the floating button | Removes it entirely, so a stray tap cannot open the panel |
+| Crosshair row in the panel | Switches reticle, live |
+| Choose crosshair on the main screen | Opens the full picker, with colour |
 | **Move** in the panel | Makes the crosshair draggable until you tap **Done** |
 | Tap the crosshair while in Move mode | Snaps it back to dead centre |
 | **−** / **+** next to the position sliders | Nudges by exactly one pixel |
 
 The notification also carries Show/Hide and Stop actions.
+
+## Show the crosshair only in chosen apps
+
+Off by default. Turn it on from Settings, allow usage access, then pick the apps. The crosshair
+appears while one of them is in front and hides otherwise.
+
+Android only lets an app see which app is in front if the user grants usage access, so the app
+asks for it when the toggle is switched on. Nothing is read beyond the package name of the app on
+screen, and it never leaves the phone.
+
+If the foreground app cannot be determined, the crosshair stays visible rather than hiding. A
+crosshair that fails to appear is worse than one that appears when it was not wanted.
 
 ## Max priority mode
 
@@ -80,6 +97,11 @@ gets `TYPE_ACCESSIBILITY_OVERLAY` — one layer higher.
 Turn it on from the main screen; Android will send you to Accessibility settings to enable
 "Crosshair max priority". The service draws the crosshair and nothing else: it does not read
 screen content, does not observe input, and collects nothing. Everything works without it.
+
+The crosshair is hidden while the tuning panel is open, in this mode only. The accessibility layer
+sits above the panel's own window — that ranking is exactly what makes the mode work — so without
+that it would be painted over the reticle strip and the controls. Move mode is the exception: the
+crosshair stays visible so you can drag it while the panel is up.
 
 ## The 100% opacity catch
 
@@ -110,6 +132,15 @@ So:
 The panel shows a warning under the opacity slider whenever your current combination would get
 taps blocked. Nothing is capped — the choice stays yours.
 
+This is about the *crosshair's* opacity, and it is the one place a fade is wanted. Everything
+else in the app is fully opaque: the panel, the picker and the controls are solid surfaces, not
+tinted glass, so nothing behind them shows through while you tune.
+
+At 100% the crosshair is genuinely solid. Anti-aliasing is what makes it look see-through: an
+anti-aliased edge pixel is a blend of the colour and the scene behind it, and on a thin line the
+edge is most of the line. So at 100% smoothing is off and every drawn pixel is the pure colour.
+Drop below 100% and smoothing comes back, because there the fade is the point.
+
 ### What no overlay can do
 
 Worth knowing before you file a bug:
@@ -122,17 +153,22 @@ Worth knowing before you file a bug:
 
 ---
 
-## Swapping in your own crosshairs
+## Adding your own crosshairs
 
-1. Drop transparent PNGs into `app/src/main/res/drawable-nodpi/`. Lowercase names, digits and
-   underscores only.
-2. Add them to the list in `app/src/main/java/com/pure/crosshair/Catalog.kt`.
+Reticles are drawn from primitives, so there are no image files to ship and nothing to
+import. To add one, open `app/src/main/java/com/pure/crosshair/Catalog.kt` and:
 
-Entry 0 does double duty as the launcher icon and the floating button icon, so if you replace it,
-regenerate the icons in `app/src/main/res/mipmap-*/` too.
+1. Add an entry to the `all` list with a unique `id` and a display `name`.
+2. Add its extent to the `EXTENTS` map in `CrosshairArt` — the largest coordinate magnitude
+   the shape draws, in authored units. This is what normalises footprints so every reticle
+   looks the same size at a given setting.
+3. Add a branch to the `when (id)` in `CrosshairArt.draw`. Coordinates run from -1 to 1 with
+   the origin at the centre, and the aiming point is the origin. Shapes are built from
+   `line`, `poly`, `rect`, `dot`, `ring`, `ticks` and `brackets`.
 
-Square images work best. The image centre is the aiming point, so centre your artwork in the
-canvas or plan on nudging it with the position sliders.
+Reticles are scaled so every shape occupies the same fraction of the box, which keeps the
+picker grid even. The launcher icon and the floating button icon are the `ic_sigil` drawable,
+independent of the catalog, so adding a crosshair never changes the app icon.
 
 ## Permissions and why
 
@@ -143,6 +179,20 @@ canvas or plan on nudging it with the position sliders.
 | `POST_NOTIFICATIONS` | The control notification. Denying it only costs you that notification |
 | `RECEIVE_BOOT_COMPLETED` | Only used if you turn on "Start after reboot" |
 | `VIBRATE` | Haptic tick on long press |
+| `PACKAGE_USAGE_STATS` | Only used by "Show for chosen apps", and only after you allow it in system settings |
+
+## Hiding the floating button
+
+If you keep hitting the button by mistake while playing, turn on **Hide the floating button**
+on the main screen. The button window is removed rather than made invisible, so there is
+nothing on screen to catch a tap, and the crosshair itself is untouched.
+
+The panel is still reachable two ways:
+
+- **Open the tuning panel** on the main screen.
+- The notification, whose **Show button** action brings the button back.
+
+The notification text says the button is hidden, so the state is never a mystery.
 
 Nothing leaves the device. There is no network permission, so the app cannot talk to anything.
 
@@ -155,6 +205,6 @@ app/src/main/java/com/pure/crosshair/
   CrosshairLayer.kt      The crosshair window itself, plus the Bridge between renderers
   ControlPanel.kt        The tuning panel
   MaxPriorityService.kt  Optional accessibility renderer
-  Catalog.kt             The 35 crosshair drawables
+  Catalog.kt             The 35 crosshair shapes, drawn as vectors
   Prefs.kt               Settings
 ```

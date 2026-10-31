@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Grid spacing and the inset the dialog chrome takes off the screen width. -->
+    <dimen name="picker_gap">8dp</dimen>
+    <dimen name="picker_inset">96dp</dimen>
+</resources>

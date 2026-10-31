@@ -9,10 +9,32 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Reads which app is in front, for per-app auto-show. Optional and off by default. -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
+
     <!-- Optional: bring the overlay back after a reboot. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!--
+        Android 11 and newer filter package visibility by default: an app only sees itself plus
+        the packages it explicitly asks about. Without this block queryIntentActivities returns
+        a handful of packages and the app list comes up nearly empty.
+
+        Declaring the launcher intent is the supported way to see the apps a user can actually
+        open. It is deliberately not QUERY_ALL_PACKAGES, which is a restricted permission that
+        would expose every package on the device, installed or not, and needs a Play Store
+        justification. This asks for exactly the set the picker shows.
+
+        Ignored below API 30, where there was no filtering to begin with.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
 
     <application
         android:allowBackup="true"
@@ -34,12 +56,10 @@
         </activity>
 
         <activity
-            android:name=".ImportActivity"
-            android:excludeFromRecents="true"
+            android:name=".AppPickerActivity"
             android:exported="false"
-            android:launchMode="singleTop"
-            android:taskAffinity=""
-            android:theme="@style/Theme.Crosshair.Invisible" />
+            android:label="@string/apps_title"
+            android:parentActivityName=".MainActivity" />
 
         <service
             android:name=".OverlayService"

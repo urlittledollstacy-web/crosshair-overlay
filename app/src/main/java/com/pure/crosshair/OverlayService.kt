@@ -36,21 +36,23 @@ import kotlin.math.hypot
 class OverlayService : Service(), ControlPanel.Callbacks {
 
     private lateinit var prefs: Prefs
-    private lateinit var library: Library
     private val wm by lazy { windowManager() }
     private val handler = Handler(Looper.getMainLooper())
 
     private var button: ImageView? = null
     private var buttonParams: WindowManager.LayoutParams? = null
+
+    /** Last posted notification state, so identical ones are not re-posted. */
+    private var lastNotification = -1
     private var panel: ControlPanel? = null
     private var layer: CrosshairLayer? = null
+    private var watcher: AppWatcher? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         prefs = Prefs(this)
-        library = Library(this)
 
         createChannel()
         goForeground()
@@ -66,7 +68,17 @@ class OverlayService : Service(), ControlPanel.Callbacks {
         isRunning = true
 
         panel = ControlPanel(this, prefs, this)
-        addButton()
+        if (!prefs.buttonHidden) addButton()
+
+        // Started unconditionally, because whether it matters depends on a preference that can
+        // change at any moment. It does nothing until per-app auto-show is turned on.
+        watcher = AppWatcher(
+            context = this,
+            shouldPoll = { prefs.autoShowEnabled }
+        ) { pkg ->
+            Bridge.foreground = pkg
+            Bridge.refresh()
+        }.also { it.start() }
 
         // Refresh both renderers, not just ours, so a hand off to max priority mode
         // happens on the very first start rather than on the next settings change.
@@ -79,6 +91,10 @@ class OverlayService : Service(), ControlPanel.Callbacks {
                 prefs.visible = !prefs.visible
                 Bridge.refresh()
                 panel?.syncFromPrefs()
+            }
+
+            ACTION_TOGGLE_BUTTON -> {
+                setButtonHidden(!prefs.buttonHidden)
             }
 
             ACTION_STOP -> {
@@ -102,7 +118,9 @@ class OverlayService : Service(), ControlPanel.Callbacks {
     }
 
     private fun reposition() {
-        val screen = screenSize()
+        // Must happen before any position is read, since offsets are keyed by orientation.
+        prefs.refreshMetrics()
+        val screen = prefs.screen
 
         button?.let { v ->
             buttonParams?.let { lp ->
@@ -127,6 +145,9 @@ class OverlayService : Service(), ControlPanel.Callbacks {
     override fun onDestroy() {
         isRunning = false
         Bridge.overlay = null
+        // Leaving this set would keep the crosshair hidden for the next session.
+        Bridge.panelOpen = false
+        Bridge.moveMode = false
         panel?.hide()
         layer?.hide()
         layer = null
@@ -135,6 +156,9 @@ class OverlayService : Service(), ControlPanel.Callbacks {
         Bridge.maxPriority?.applyConfig()
         button?.let { v -> runCatching { wm.removeViewImmediate(v) } }
         button = null
+        watcher?.stop()
+        watcher = null
+        Bridge.foreground = null
         handler.removeCallbacksAndMessages(null)
         super.onDestroy()
     }
@@ -155,8 +179,7 @@ class OverlayService : Service(), ControlPanel.Callbacks {
                 it.onMoved = ::onCrosshairMoved
                 layer = it
             }
-            val hasImage = library.file(prefs.selected) != null
-            if (prefs.visible && hasImage) current.show(prefs) else current.hide()
+            if (prefs.shouldShowNow(Bridge.foreground)) current.show(prefs) else current.hide()
         }
 
         updateNotification()
@@ -166,6 +189,19 @@ class OverlayService : Service(), ControlPanel.Callbacks {
         prefs.offsetX = x
         prefs.offsetY = y
         panel?.syncPosition()
+    }
+
+    /**
+     * Opens the panel from outside the overlay, i.e. from the app.
+     *
+     * Needed because hiding the button also removes the only floating way in, and the
+     * notification is not where everyone looks.
+     */
+    fun openPanel() {
+        panel?.let { p ->
+            if (!p.isShowing) p.show()
+            p.syncFromPrefs()
+        }
     }
 
     /** Lets the accessibility renderer keep the panel sliders in step while dragging. */
@@ -180,6 +216,9 @@ class OverlayService : Service(), ControlPanel.Callbacks {
     }
 
     override fun onMoveModeChanged(enabled: Boolean) {
+        // Move mode needs the crosshair on screen even with the panel open, so it clears the
+        // suppression rather than fighting it.
+        Bridge.moveMode = enabled
         activeLayer()?.let { l ->
             l.setDraggable(enabled)
             l.update(prefs)
@@ -190,28 +229,22 @@ class OverlayService : Service(), ControlPanel.Callbacks {
         stopSelf()
     }
 
-    override fun onImportRequested() {
-        // The panel is an overlay window, so it would sit on top of the file picker.
-        panel?.hide()
-        runCatching {
-            startActivity(
-                Intent(this, ImportActivity::class.java)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
-            )
-        }
-    }
-
-    /** Called after an image is imported or deleted. */
-    fun onLibraryChanged() {
-        handler.post {
-            if (panel?.isShowing == true) {
-                panel?.reloadLibrary()
-            } else {
-                panel?.show()
-                panel?.syncFromPrefs()
-            }
-            applyConfig()
-        }
+    /**
+     * The panel opened or closed.
+     *
+     * The crosshair has to step aside while it is up. In max priority mode it is an
+     * accessibility overlay, which outranks the panel's own window, so it would otherwise be
+     * painted over the reticle strip and the controls. In normal mode the two windows share a
+     * type and the panel wins only because it was added later, which is fragile, so the
+     * crosshair steps aside either way.
+     *
+     * Both renderers are told: either one may be the one currently drawing.
+     */
+    override fun onPanelVisibilityChanged(visible: Boolean) {
+        // State goes on the Bridge so a layer created later picks it up, then both renderers are
+        // refreshed: either one may be the one currently drawing the crosshair.
+        Bridge.panelOpen = visible
+        Bridge.refresh()
     }
 
     private fun activeLayer(): CrosshairLayer? =
@@ -222,6 +255,25 @@ class OverlayService : Service(), ControlPanel.Callbacks {
         }
 
     // ------------------------------------------------------------ floating button
+
+    /**
+     * Shows or hides the floating button.
+     *
+     * The window is removed rather than hidden, so there is nothing on screen to catch a stray
+     * tap. The panel is still reachable from the notification and the main screen.
+     */
+    fun setButtonHidden(hidden: Boolean) {
+        prefs.buttonHidden = hidden
+        if (hidden) {
+            panel?.hide()
+            button?.let { v -> runCatching { wm.removeViewImmediate(v) } }
+            button = null
+            buttonParams = null
+        } else if (button == null) {
+            addButton()
+        }
+        updateNotification()
+    }
 
     @SuppressLint("ClickableViewAccessibility")
     private fun addButton() {
@@ -269,6 +321,9 @@ class OverlayService : Service(), ControlPanel.Callbacks {
         lp: WindowManager.LayoutParams
     ): View.OnTouchListener {
         val slop = ViewConfiguration.get(this).scaledTouchSlop
+        // Cached once per gesture. Reading it per motion event went through the window manager
+        // binder, which is a lot of calls while dragging a button around.
+        var screen = screenSize()
         var downX = 0f
         var downY = 0f
         var startX = 0
@@ -287,6 +342,7 @@ class OverlayService : Service(), ControlPanel.Callbacks {
         return View.OnTouchListener { _, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    screen = screenSize()
                     downX = event.rawX
                     downY = event.rawY
                     startX = lp.x
@@ -310,7 +366,6 @@ class OverlayService : Service(), ControlPanel.Callbacks {
                         handler.removeCallbacks(longPress)
                     }
                     if (dragging) {
-                        val screen = screenSize()
                         lp.x = (startX + dx.toInt()).coerceIn(0, screen.x - lp.width)
                         lp.y = (startY + dy.toInt()).coerceIn(0, screen.y - lp.height)
                         runCatching { wm.updateViewLayout(view, lp) }
@@ -379,6 +434,7 @@ class OverlayService : Service(), ControlPanel.Callbacks {
     }
 
     private fun goForeground() {
+        lastNotification = (if (prefs.visible) 1 else 0) or (if (prefs.buttonHidden) 2 else 0)
         if (Build.VERSION.SDK_INT >= 34) {
             startForeground(
                 NOTIFICATION_ID,
@@ -390,7 +446,16 @@ class OverlayService : Service(), ControlPanel.Callbacks {
         }
     }
 
+    /**
+     * The notification only depends on whether the crosshair and the button are showing, but
+     * this runs from every slider tick. Rebuilding and re-posting an identical notification on
+     * each progress event is a binder call per frame for no visible change, so the last posted
+     * state is remembered and unchanged ones are dropped.
+     */
     private fun updateNotification() {
+        val signature = (if (prefs.visible) 1 else 0) or (if (prefs.buttonHidden) 2 else 0)
+        if (signature == lastNotification) return
+        lastNotification = signature
         getSystemService(NotificationManager::class.java)
             .notify(NOTIFICATION_ID, buildNotification())
     }
@@ -415,8 +480,20 @@ class OverlayService : Service(), ControlPanel.Callbacks {
             Intent(this, OverlayService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_IMMUTABLE
         )
+        val button = PendingIntent.getService(
+            this,
+            3,
+            Intent(this, OverlayService::class.java).setAction(ACTION_TOGGLE_BUTTON),
+            PendingIntent.FLAG_IMMUTABLE
+        )
 
-        val state = if (prefs.visible) R.string.notif_showing else R.string.notif_hidden
+        // With the button hidden the panel has no floating way in, so the notification says
+        // where to find it instead of leaving the user with no obvious route.
+        val state = when {
+            !prefs.buttonHidden -> if (prefs.visible) R.string.notif_showing else R.string.notif_hidden
+            prefs.visible -> R.string.notif_showing_no_button
+            else -> R.string.notif_hidden_no_button
+        }
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
@@ -433,12 +510,18 @@ class OverlayService : Service(), ControlPanel.Callbacks {
                 getString(if (prefs.visible) R.string.action_hide else R.string.action_show),
                 toggle
             )
+            .addAction(
+                0,
+                getString(if (prefs.buttonHidden) R.string.action_show_button else R.string.action_hide_button),
+                button
+            )
             .addAction(0, getString(R.string.action_stop), stop)
             .build()
     }
 
     companion object {
         const val ACTION_TOGGLE = "com.pure.crosshair.action.TOGGLE"
+        const val ACTION_TOGGLE_BUTTON = "com.pure.crosshair.action.TOGGLE_BUTTON"
         const val ACTION_STOP = "com.pure.crosshair.action.STOP"
 
         private const val CHANNEL_ID = "overlay"

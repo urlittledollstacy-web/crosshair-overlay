@@ -8,18 +8,24 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.view.Gravity
 import android.view.View
+import android.widget.FrameLayout
+import android.widget.GridLayout
+import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.pure.crosshair.databinding.ActivityMainBinding
+import com.pure.crosshair.databinding.DialogCrosshairPickerBinding
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var prefs: Prefs
-    private lateinit var library: Library
 
     private val requestNotifications =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -32,14 +38,30 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         prefs = Prefs(this)
-        library = Library(this)
 
         binding.btnGrant.setOnClickListener { requestOverlayPermission() }
-        binding.btnImport.setOnClickListener {
-            startActivity(Intent(this, ImportActivity::class.java))
-        }
+        binding.btnChoose.setOnClickListener { showCrosshairPicker() }
         binding.btnPrimary.setOnClickListener { onPrimaryClicked() }
         binding.btnPriority.setOnClickListener { onPriorityClicked() }
+        binding.btnOpenPanel.setOnClickListener {
+            val overlay = Bridge.overlay
+            if (overlay == null) {
+                Toast.makeText(this, R.string.panel_unavailable, Toast.LENGTH_SHORT).show()
+            } else {
+                overlay.openPanel()
+            }
+        }
+        binding.btnHideButton.setOnClickListener {
+            val overlay = Bridge.overlay
+            if (overlay != null) {
+                // Goes through the service so the button window is added or removed at once.
+                overlay.setButtonHidden(!prefs.buttonHidden)
+            } else {
+                // Overlay is not running, so just record it for the next start.
+                prefs.buttonHidden = !prefs.buttonHidden
+            }
+            refresh()
+        }
         binding.btnSnap.setOnClickListener {
             prefs.snapButtonToEdge = !prefs.snapButtonToEdge
             refresh()
@@ -47,6 +69,18 @@ class MainActivity : AppCompatActivity() {
         binding.btnBoot.setOnClickListener {
             prefs.startOnBoot = !prefs.startOnBoot
             refresh()
+        }
+        binding.btnAuto.setOnClickListener {
+            prefs.autoShowEnabled = !prefs.autoShowEnabled
+            // Turning it on is useless without usage access, so ask for it right away rather
+            // than letting the user pick apps that can never take effect.
+            if (prefs.autoShowEnabled && !AppWatcher.hasAccess(this)) requestUsageAccess()
+            Bridge.refresh()
+            refresh()
+        }
+        binding.btnAutoAccess.setOnClickListener { requestUsageAccess() }
+        binding.btnAutoChoose.setOnClickListener {
+            startActivity(Intent(this, AppPickerActivity::class.java))
         }
     }
 
@@ -64,7 +98,7 @@ class MainActivity : AppCompatActivity() {
 
         binding.permissionState.text = getString(if (granted) R.string.perm_granted else R.string.perm_missing)
         binding.permissionState.setTextColor(
-            ContextCompat.getColor(this, if (granted) R.color.ice else R.color.danger)
+            ContextCompat.getColor(this, if (granted) R.color.accent else R.color.danger)
         )
         binding.btnGrant.visibility = if (granted) View.GONE else View.VISIBLE
         binding.permissionBody.visibility = if (granted) View.GONE else View.VISIBLE
@@ -74,23 +108,19 @@ class MainActivity : AppCompatActivity() {
             if (running) R.drawable.bg_cta_ghost else R.drawable.bg_cta
         )
         binding.btnPrimary.setTextColor(
-            if (running) ContextCompat.getColor(this, R.color.text) else 0xFF120A1C.toInt()
+            ContextCompat.getColor(this, if (running) R.color.text else R.color.on_accent)
         )
         binding.btnPrimary.isEnabled = granted
         binding.btnPrimary.alpha = if (granted) 1f else 0.4f
 
-        val images = library.list().size
-        binding.libraryCount.text =
-            if (images == 0) getString(R.string.library_none)
-            else getString(R.string.library_n, images)
-
-        binding.statusLine.setText(
-            when {
-                images == 0 -> R.string.need_an_image
-                running -> R.string.running
-                else -> R.string.not_running
-            }
+        binding.crosshairName.text = CrosshairCatalog.name(prefs.selected)
+        binding.crosshairPreview.setImageDrawable(
+            CrosshairCatalog.byId(prefs.selected)?.drawable(prefs.crosshairColor, thumbnail = true)
+                ?: CrosshairCatalog.default.drawable(prefs.crosshairColor, thumbnail = true)
         )
+
+        binding.statusLine.setText(if (running) R.string.running else R.string.not_running)
+        binding.statusDot.visibility = if (running) View.VISIBLE else View.GONE
 
         val priorityOn = prefs.maxPriority && isMaxPriorityEnabled()
         binding.btnPriority.isSelected = priorityOn
@@ -102,11 +132,62 @@ class MainActivity : AppCompatActivity() {
             }
         )
 
+        binding.btnHideButton.isSelected = prefs.buttonHidden
+        binding.btnHideButton.setText(if (prefs.buttonHidden) R.string.on else R.string.off)
+        // The button is what opens the panel, so with it hidden this is the way back in.
+        binding.btnSnap.alpha = if (prefs.buttonHidden) 0.5f else 1f
+        binding.btnSnap.isEnabled = !prefs.buttonHidden
+
         binding.btnSnap.isSelected = prefs.snapButtonToEdge
         binding.btnSnap.setText(if (prefs.snapButtonToEdge) R.string.on else R.string.off)
 
         binding.btnBoot.isSelected = prefs.startOnBoot
         binding.btnBoot.setText(if (prefs.startOnBoot) R.string.on else R.string.off)
+
+        val autoOn = prefs.autoShowEnabled
+        binding.btnAuto.isSelected = autoOn
+        binding.btnAuto.setText(if (autoOn) R.string.on else R.string.off)
+
+        // The access row and the app list only mean anything with the toggle on.
+        binding.autoAccessGroup.visibility = if (autoOn) View.VISIBLE else View.GONE
+        binding.btnAutoChoose.visibility = if (autoOn) View.VISIBLE else View.GONE
+
+        if (autoOn) {
+            val allowed = AppWatcher.hasAccess(this)
+            binding.autoAccessState.text =
+                getString(if (allowed) R.string.auto_access_granted else R.string.perm_missing)
+            binding.autoAccessState.setTextColor(
+                ContextCompat.getColor(this, if (allowed) R.color.accent else R.color.danger)
+            )
+            binding.btnAutoAccess.visibility = if (allowed) View.GONE else View.VISIBLE
+            binding.autoAccessBody.visibility = if (allowed) View.GONE else View.VISIBLE
+
+            val count = prefs.autoShowPackages.size
+            binding.btnAutoChoose.text = if (count == 0) {
+                getString(R.string.auto_choose)
+            } else {
+                getString(R.string.auto_count, count)
+            }
+        }
+    }
+
+    /**
+     * Opens the system screen where usage access is granted.
+     *
+     * There is no runtime permission for this, so the only route is the settings screen. The
+     * extras point it at our package where the OEM honours them, and it degrades to the full
+     * list where they do not.
+     */
+    private fun requestUsageAccess() {
+        runCatching {
+            startActivity(
+                Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                    data = Uri.parse("package:$packageName")
+                }
+            )
+        }.recoverCatching {
+            startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+        }
     }
 
     private fun onPrimaryClicked() {
@@ -151,6 +232,142 @@ class MainActivity : AppCompatActivity() {
         refresh()
     }
 
+    /**
+     * The crosshair picker.
+     *
+     * A dialog rather than a screen: choosing a reticle is a small decision made in place, and
+     * a full screen for it would cost a navigation step each time.
+     */
+    private fun showCrosshairPicker() {
+        val dialogBinding = DialogCrosshairPickerBinding.inflate(layoutInflater)
+        val dialog = AlertDialog.Builder(this, R.style.Theme_Crosshair_Dialog)
+            .setTitle(R.string.picker_title)
+            .setView(dialogBinding.root)
+            .setPositiveButton(R.string.picker_done, null)
+            .create()
+
+        val gap = resources.getDimensionPixelSize(R.dimen.picker_gap)
+        val columns = PICKER_COLUMNS
+        val grid = dialogBinding.pickerGrid
+        grid.columnCount = columns
+
+        val screenWidth = resources.displayMetrics.widthPixels
+        val available = screenWidth - resources.getDimensionPixelSize(R.dimen.picker_inset)
+        val cell = ((available - gap * (columns - 1)) / columns).coerceAtLeast(dp(44))
+
+        val tiles = mutableListOf<View>()
+        for (model in CrosshairCatalog.all) {
+            val tile = model.thumbnailTile(
+                this, prefs.crosshairColor, cell, gap, model.id == prefs.selected
+            ) {
+                prefs.selected = model.id
+                tiles.forEachIndexed { i, v ->
+                    v.isSelected = CrosshairCatalog.all[i].id == model.id
+                }
+                tintTiles(tiles)
+                Bridge.refresh()
+                refresh()
+            }
+            // GridLayout drives the cell size, so the tile's own params are replaced here.
+            tile.layoutParams = GridLayout.LayoutParams().apply {
+                width = cell
+                height = cell
+                marginEnd = gap
+                bottomMargin = gap
+            }
+            tiles += tile
+            grid.addView(tile)
+        }
+        tintTiles(tiles)
+
+        buildColorSwatches(dialogBinding, tiles)
+
+        // The crosshair is drawn from a window that outranks an activity, so it would otherwise
+        // sit on top of this dialog. onDismiss fires however the dialog closes, including back
+        // and outside taps, so the crosshair cannot get stuck hidden.
+        dialog.setOnDismissListener {
+            Bridge.pickerOpen = false
+            Bridge.refresh()
+        }
+        Bridge.pickerOpen = true
+        Bridge.refresh()
+
+        dialog.show()
+
+        // After show(), because the grid has no width before it is laid out.
+        //
+        // The dialog is narrower than the screen, so a cell derived from screen width leaves the
+        // grid short of the dialog and GridLayout parks all the slack on the right, which reads
+        // as the whole grid sitting off-centre. Size the tiles to the grid's own width instead,
+        // with the gap only between columns so the two outer edges line up.
+        grid.post {
+            val usable = grid.width - grid.paddingStart - grid.paddingEnd
+            if (usable <= 0) return@post
+            val fitted = ((usable - gap * (columns - 1)) / columns).coerceAtLeast(1)
+            tiles.forEachIndexed { i, tile ->
+                (tile.layoutParams as? GridLayout.LayoutParams)?.let { lp ->
+                    lp.width = fitted
+                    lp.height = fitted
+                    lp.marginEnd = if ((i + 1) % columns == 0) 0 else gap
+                }
+            }
+            grid.requestLayout()
+        }
+    }
+
+    /** Retints the existing tiles in place instead of rebuilding 35 drawables. */
+    private fun tintTiles(tiles: List<View>) {
+        tiles.forEach { v ->
+            ((v as? ImageView)?.drawable as? CrosshairDrawable)?.setColor(prefs.crosshairColor)
+        }
+    }
+
+    /** A ring per colour, filled with that colour. Tapping one retints the grid immediately. */
+    private fun buildColorSwatches(
+        b: DialogCrosshairPickerBinding,
+        tiles: List<View>
+    ) {
+        val slot = dp(36)
+        val fill = dp(26)
+        val gap = dp(8)
+        b.colorRow.removeAllViews()
+
+        for ((name, color) in CrosshairColors.all) {
+            val swatch = FrameLayout(this).apply {
+                layoutParams = LinearLayout.LayoutParams(slot, slot).also { it.marginEnd = gap }
+                background = ContextCompat.getDrawable(this@MainActivity, R.drawable.bg_swatch_slot)
+                isSelected = color == prefs.crosshairColor
+                contentDescription = name
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    prefs.crosshairColor = color
+                    for (i in 0 until b.colorRow.childCount) {
+                        b.colorRow.getChildAt(i).isSelected = i == CrosshairColors.all.indexOfFirst {
+                            it.second == color
+                        }
+                    }
+                    tintTiles(tiles)
+                    Bridge.refresh()
+                    refresh()
+                }
+            }
+            swatch.addView(
+                View(this).apply {
+                    layoutParams = FrameLayout.LayoutParams(fill, fill, Gravity.CENTER)
+                    background = ContextCompat.getDrawable(
+                        this@MainActivity, R.drawable.bg_swatch_fill
+                    )?.mutate()?.apply {
+                        setTint(color)
+                    }
+                }
+            )
+            b.colorRow.addView(swatch)
+        }
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
     private fun requestOverlayPermission() {
         runCatching {
             startActivity(
@@ -160,6 +377,11 @@ class MainActivity : AppCompatActivity() {
                 )
             )
         }
+    }
+
+    companion object {
+        /** Five columns keeps a tile around 56dp on a normal phone, which is a comfortable tap. */
+        private const val PICKER_COLUMNS = 5
     }
 
     /** True when the user has switched our accessibility service on in system settings. */

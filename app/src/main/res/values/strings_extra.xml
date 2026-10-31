@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="option_snap_title">Snap button to edge</string>
-    <string name="option_snap_body">Off by default, so the floating button stays wherever you drop it, middle of the screen included. Turn on to have it spring back to the nearest side.</string>
-</resources>

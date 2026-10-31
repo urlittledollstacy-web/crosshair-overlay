@@ -18,20 +18,28 @@
     <string name="option_priority_body">Draws the crosshair from an accessibility service, one layer above normal app overlays. Useful if another floating app keeps covering it. Optional.</string>
     <string name="option_boot_title">Start after reboot</string>
     <string name="option_boot_body">Brings the overlay back on its own when the phone restarts.</string>
+    <string name="open_panel">Open the tuning panel</string>
+    <string name="panel_unavailable">Start the overlay first</string>
+    <string name="option_hide_button_title">Hide the floating button</string>
+    <string name="option_hide_button_body">Use this if you keep hitting the button by mistake while playing. The crosshair stays exactly as it is. Open this panel from the notification instead.</string>
+    <string name="option_snap_title">Snap button to edge</string>
+    <string name="option_snap_body">Off by default, so the floating button stays wherever you drop it, middle of the screen included. Turn on to have it spring back to the nearest side.</string>
     <string name="on">On</string>
     <string name="off">Off</string>
     <string name="setup">Set up</string>
 
+    <string name="settings_title">Settings</string>
     <string name="howto_title">How it works</string>
     <string name="howto_1">Tap the floating sigil to open the tuning panel.</string>
-    <string name="howto_2">Drag the sigil anywhere; it snaps to the nearest edge.</string>
+    <string name="howto_2">Drag the sigil anywhere. Turn on edge snapping in Settings to have it spring back to the side.</string>
     <string name="howto_3">Long press it to show or hide the crosshair without opening anything.</string>
     <string name="footer">The crosshair is always click through, at every opacity including 100%. Taps land on the app underneath.</string>
 
     <!-- Panel -->
-    <string name="panel_title">Crosshair</string>
+    <string name="panel_title">Overlay</string>
     <string name="close">Close</string>
-    <string name="label_style">Crosshair</string>
+    <string name="label_crosshair">Reticle</string>
+    <string name="label_colour">Colour</string>
     <string name="label_size">Size</string>
     <string name="label_opacity">Opacity</string>
     <string name="label_x">Horizontal</string>
@@ -55,8 +63,12 @@
     <string name="channel_description">Keeps the crosshair on screen while you use other apps.</string>
     <string name="notif_showing">Crosshair showing</string>
     <string name="notif_hidden">Crosshair hidden</string>
+    <string name="notif_showing_no_button">Crosshair showing. Button hidden.</string>
+    <string name="notif_hidden_no_button">Crosshair hidden. Button hidden.</string>
     <string name="action_show">Show</string>
     <string name="action_hide">Hide</string>
+    <string name="action_show_button">Show button</string>
+    <string name="action_hide_button">Hide button</string>
     <string name="action_stop">Stop</string>
 
     <!-- Accessibility service -->
@@ -65,16 +77,28 @@
     <string name="a11y_description">Turn this on only if you want the crosshair to outrank other floating apps. It draws the crosshair and nothing else. It does not read the screen, record input, or collect any data.</string>
     <string name="a11y_toast">Find Crosshair in this list and turn it on.</string>
 
-    <!-- Image library -->
-    <string name="your_crosshairs">Your crosshairs</string>
-    <string name="library_body">Import any PNG, WebP or JPG. Transparent PNGs work best. Images are copied into the app, so moving or deleting the original afterwards is fine.</string>
-    <string name="import_image">Import image</string>
-    <string name="imported_crosshair">Imported crosshair</string>
-    <string name="picker_empty">Nothing imported yet. Tap + to add an image.</string>
-    <string name="crosshair_removed">Removed</string>
-    <string name="import_failed">That file could not be read as an image.</string>
-    <string name="import_no_picker">No file picker available on this device.</string>
-    <string name="library_none">None yet</string>
-    <string name="library_n">%1$d imported</string>
-    <string name="need_an_image">Import an image to get started</string>
+    <!-- Crosshair picker -->
+    <string name="card_crosshair">Crosshair</string>
+    <string name="crosshair_body">Thirty-five reticles, drawn sharp at any size. Pick one here, then tune it from the floating panel.</string>
+    <string name="choose_crosshair">Choose crosshair</string>
+    <string name="picker_title">Choose a crosshair</string>
+    <string name="picker_done">Done</string>
+    <string name="preview_description">Preview of the selected crosshair</string>
+
+    <!-- Per-app auto-show -->
+    <string name="card_auto">Show for chosen apps</string>
+    <string name="auto_body">Keep the crosshair hidden until one of the apps you pick is in front. Useful when you only want it in one game.</string>
+    <string name="auto_choose">Choose apps</string>
+    <string name="auto_none">No apps chosen</string>
+    <string name="auto_count">%1$d chosen</string>
+    <string name="auto_need_access_title">Usage access</string>
+    <string name="auto_need_access_body">Android only lets an app see which app is in front if you allow it. Nothing is read or stored beyond the package name of the app on screen, and it never leaves the phone.</string>
+    <string name="auto_grant_access">Allow usage access</string>
+    <string name="auto_access_granted">Allowed</string>
+    <string name="apps_title">Show the crosshair in</string>
+    <string name="apps_body">Tap an app to add or remove it. The crosshair appears only while one of these is in front.</string>
+    <string name="apps_search">Search apps</string>
+    <string name="apps_done">Done</string>
+    <string name="apps_empty">No apps found.</string>
+    <string name="apps_selected_count">%1$d selected</string>
 </resources>

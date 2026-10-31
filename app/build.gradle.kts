@@ -20,8 +20,11 @@ android {
             isMinifyEnabled = false
         }
         release {
-            isMinifyEnabled = false
-            isShrinkResources = false
+            // Both were off, so a release build shipped the whole unminified library and every
+            // unused resource. The keep rules in proguard-rules.pro cover the manifest-only
+            // entry points, so this is safe to turn on.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

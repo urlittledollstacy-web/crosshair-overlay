@@ -3,7 +3,6 @@ package com.pure.crosshair
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.PixelFormat
-import android.graphics.drawable.AnimatedImageDrawable
 import android.os.Build
 import android.view.Gravity
 import android.view.MotionEvent
@@ -27,12 +26,20 @@ class CrosshairLayer(
 ) {
 
     private val wm = context.windowManager()
-    private val library = Library(context)
     private var view: ImageView? = null
     private var params: WindowManager.LayoutParams? = null
 
-    /** Which image is currently decoded into the view, so slider drags do not re-decode. */
-    private var loadedName: String? = null
+    /** What is currently drawn, so slider drags do not rebuild the artwork. */
+    private var loadedId: String? = null
+    private var loadedColor: Int = 0
+    private var loadedDrawable: CrosshairDrawable? = null
+
+    /** Last values pushed to the window, so an unchanged update is skipped entirely. */
+    private var lastX = Int.MIN_VALUE
+    private var lastY = Int.MIN_VALUE
+    private var lastSide = -1
+    private var lastAlpha = -1f
+    private var lastFlags = -1
 
     /** Called with the new centre offset while the crosshair is being dragged. */
     var onMoved: ((x: Int, y: Int) -> Unit)? = null
@@ -41,13 +48,37 @@ class CrosshairLayer(
 
     val isAttached: Boolean get() = view != null
 
+    /**
+     * Hides this crosshair while our own UI is up, for whichever renderer that UI cannot outrank.
+     *
+     * Window types rank by number, lower on top:
+     *
+     *   TYPE_ACCESSIBILITY_OVERLAY 2032   crosshair in max priority mode
+     *   TYPE_APPLICATION_OVERLAY   2038   crosshair normally, and the tuning panel
+     *   TYPE_APPLICATION              1   an activity, and so the picker dialog
+     *
+     * Both crosshair types outrank an activity, so the crosshair is painted over the picker
+     * dialog in either mode. The tuning panel is itself an app overlay, so it only outranks the
+     * normal crosshair by being added later, and the accessibility crosshair beats it outright.
+     *
+     * So: hide for the picker always, and hide for the panel unless this is the normal renderer,
+     * which already sits behind it. State comes from [Bridge] rather than a field here, because a
+     * layer is created lazily: switching max priority on builds a new one, and it has to know
+     * what is already open.
+     */
+    private fun applySuppression() {
+        val v = view ?: return
+        val hidden = when {
+            Bridge.pickerOpen -> true
+            Bridge.panelOpen && windowType == ACCESSIBILITY_OVERLAY -> true
+            else -> false
+        } && !Bridge.moveMode
+        val wanted = if (hidden) View.INVISIBLE else View.VISIBLE
+        if (v.visibility != wanted) v.visibility = wanted
+    }
+
     /** Adds the window if needed, then pushes the current settings into it. */
     fun show(prefs: Prefs) {
-        // Nothing to draw until the user has imported at least one image.
-        if (library.file(prefs.selected) == null) {
-            hide()
-            return
-        }
         if (view == null) attach()
         update(prefs)
     }
@@ -57,44 +88,74 @@ class CrosshairLayer(
         val p = params ?: return
 
         val side = context.dp(prefs.sizeDp)
+        val x = prefs.offsetX
+        val y = prefs.offsetY
+        val alpha = prefs.opacity / 100f
+        val flags = flags(clickThrough = !draggable)
+
+        val model = CrosshairCatalog.byId(prefs.selected) ?: CrosshairCatalog.default
+        val color = prefs.crosshairColor
+
+        // Before the early return below: whether the panel is up is independent of the window
+        // values, so a suppression change must not be skipped as "nothing changed".
+        applySuppression()
+
+        // Nothing changed, so nothing to redraw and no layout pass to ask for. This is the
+        // common case: a colour or opacity change touches one field, and a repeated refresh
+        // from the app should not cost a window update at all.
+        val sameArt = loadedId == model.id && loadedColor == color
+        if (sameArt && side == lastSide && x == lastX && y == lastY &&
+            alpha == lastAlpha && flags == lastFlags
+        ) {
+            return
+        }
+
+        if (!sameArt) {
+            if (loadedDrawable != null && loadedId == model.id) {
+                // Same reticle, new colour: retint in place instead of rebuilding the drawable.
+                loadedDrawable?.setColor(color)
+            } else {
+                val drawable = CrosshairDrawable(model, color)
+                loadedDrawable = drawable
+                v.setImageDrawable(drawable)
+            }
+            loadedId = model.id
+            loadedColor = color
+        }
+
         p.width = side
         p.height = side
-        p.x = prefs.offsetX
-        p.y = prefs.offsetY
-        p.flags = flags(clickThrough = !draggable)
+        p.x = x
+        p.y = y
+        p.flags = flags
 
         // Window level alpha, deliberately not View.setAlpha or ImageView.imageAlpha.
         // Android 12+ measures the *window* alpha when deciding whether a click-through
         // overlay is obscuring the app below. A view level fade looks identical on screen
         // but leaves the window at alpha 1.0, so taps would get blocked at every setting.
-        p.alpha = prefs.opacity / 100f
+        p.alpha = alpha
 
-        val file = library.file(prefs.selected)
-        if (file == null) {
-            hide()
-            return
-        }
-        if (loadedName != prefs.selected) {
-            val drawable = Library.loadDrawable(context, file)
-            if (drawable == null) {
-                hide()
-                return
-            }
-            v.setImageDrawable(drawable)
-            // Animated GIF and WebP do not play until told to.
-            (drawable as? AnimatedImageDrawable)?.start()
-            loadedName = prefs.selected
-        }
+        lastSide = side
+        lastX = x
+        lastY = y
+        lastAlpha = alpha
+        lastFlags = flags
 
         runCatching { wm.updateViewLayout(v, p) }
     }
 
     fun hide() {
-        (view?.drawable as? AnimatedImageDrawable)?.stop()
         view?.let { v -> runCatching { wm.removeViewImmediate(v) } }
         view = null
         params = null
-        loadedName = null
+        loadedId = null
+        loadedColor = 0
+        loadedDrawable = null
+        lastSide = -1
+        lastX = Int.MIN_VALUE
+        lastY = Int.MIN_VALUE
+        lastAlpha = -1f
+        lastFlags = -1
     }
 
     /**
@@ -108,11 +169,8 @@ class CrosshairLayer(
 
         if (!enabled) {
             v.setOnTouchListener(null)
-            v.animate().alpha(1f).setDuration(120).start()
             return
         }
-
-        v.animate().alpha(1f).setDuration(120).start()
 
         var startX = 0
         var startY = 0
@@ -180,8 +238,11 @@ class CrosshairLayer(
             .onSuccess {
                 view = image
                 params = lp
-                image.alpha = 0f
-                image.animate().alpha(1f).setDuration(160).start()
+                // Window alpha is driven by the opacity setting, so the view alpha stays at 1.
+                // A view-level fade here would be overwritten by the next update anyway.
+                image.alpha = 1f
+                // The panel may already be open when this renderer takes the crosshair over.
+                applySuppression()
             }
     }
 
@@ -214,6 +275,42 @@ object Bridge {
     var maxPriority: MaxPriorityService? = null
 
     val maxPriorityConnected: Boolean get() = maxPriority != null
+
+    /**
+     * True while the tuning panel is up.
+     *
+     * The crosshair steps aside for the duration. In max priority mode it is an accessibility
+     * overlay, which outranks the panel's window, so it would otherwise be painted over the
+     * reticle strip and the controls.
+     *
+     * This lives here rather than in either service because a layer can be created at any time:
+     * turning max priority on hands the crosshair to a brand new layer, and that layer has to
+     * know the panel is already open.
+     */
+    @Volatile
+    var panelOpen: Boolean = false
+
+    /**
+     * True while the "choose a crosshair" dialog is up.
+     *
+     * That is a normal activity dialog, so it ranks below both crosshair window types and the
+     * crosshair would otherwise be painted over it.
+     */
+    @Volatile
+    var pickerOpen: Boolean = false
+
+    /** Move mode needs the crosshair on screen even with the panel open. */
+    @Volatile
+    var moveMode: Boolean = false
+
+    /**
+     * The package currently in front, or null when it is not known.
+     *
+     * Set by the watcher on [OverlayService]. Both renderers read it so per-app auto-show
+     * resolves from a single poll rather than two independent queries.
+     */
+    @Volatile
+    var foreground: String? = null
 
     /** Re-reads settings in whichever renderers are alive. */
     fun refresh() {
