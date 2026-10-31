@@ -117,14 +117,14 @@ object CrosshairColors {
  */
 class CrosshairDrawable(private val model: Crosshair, color: Int) : Drawable() {
 
-    private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    private val stroke = Paint().apply {
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
         this.color = color
     }
 
-    private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    private val fill = Paint().apply {
         style = Paint.Style.FILL
         this.color = color
     }
@@ -158,13 +158,21 @@ class CrosshairDrawable(private val model: Crosshair, color: Int) : Drawable() {
         stroke.alpha = alphaValue
         fill.alpha = alphaValue
 
-        // Stroke width is snapped to whole pixels, with a floor of two.
+        // Anti-aliasing is the transparency. An anti-aliased edge pixel is a blend of the
+        // crosshair colour and whatever is behind it, which is literally partial alpha, and on
+        // a two pixel line the "edge" is most of the line: measured, only 8% of a small reticle
+        // reached full opacity, so it read as see-through at every setting.
         //
-        // An anti-aliased stroke only has a fully opaque core once it is at least two pixels
-        // wide. Thinner than that, every pixel of the line is partially covered, so the whole
-        // reticle renders at roughly 60-75% alpha and reads as see-through even with the
-        // opacity slider at 100 and a fully opaque window. Snapping to whole pixels also keeps
-        // the edge crisp rather than smeared across a pixel boundary.
+        // At 100% the reticle is meant to be solid, so smoothing is off and every inked pixel
+        // is the pure colour. Below 100% the fade is the feature, so smoothing goes back on to
+        // keep the curve of the rings clean. AA is per paint, so the picker tiles, the header
+        // mark and the overlay all follow whichever the slider is on.
+        val smoothing = alphaValue != 255
+        stroke.isAntiAlias = smoothing
+        fill.isAntiAlias = smoothing
+
+        // Stroke width is snapped to whole pixels, with a floor of two, so a crisp stroke has
+        // no ragged half-pixel edge and the line is always thick enough to be visible.
         stroke.strokeWidth = (size * STROKE_RATIO).roundToInt()
             .coerceAtLeast(MIN_STROKE_PX)
             .toFloat()

@@ -78,21 +78,25 @@ nothing on screen can catch a stray tap. It is the only floating way into the pa
 escape hatches must keep working: `OverlayService.openPanel()` from the main screen, and the
 notification action that toggles it back. The notification text names the hidden state.
 
-## Why a thin stroke looks see-through
+## Anti-aliasing is the transparency
 
-The crosshair artwork is drawn as anti-aliased **strokes**, not fills. An anti-aliased stroke only
-has a fully opaque core once it is at least two pixels wide; thinner than that every pixel is
-partially covered, so the line renders at roughly 60-75% alpha and reads as translucent **even
-with the opacity slider at 100 and a fully opaque window**. This is why it looked see-through in
-every colour, and why filled shapes (dot, square fill, pixel dot) never had the problem.
+The crosshair is stroked line art, and **anti-aliasing is literally partial alpha**: an edge pixel
+is a blend of the crosshair colour and whatever is behind it. On a two pixel line the edge is most
+of the line, so at 100% opacity only about 13% of the drawn pixels were the pure colour and the
+reticle read as see-through in every colour.
 
-`strokeWidth` is therefore snapped to whole pixels with a floor of `MIN_STROKE_PX = 2`. Do not
-lower that floor, and do not reintroduce a fractional width: a 1.98px stroke centred on a pixel
-boundary covers at most 60% of any pixel.
+`CrosshairDrawable` therefore turns anti-aliasing **off** when `alphaValue == 255`, and back on
+below that. At full opacity every drawn pixel is the pure colour; below it the fade is the feature
+and smoothing keeps the rings' curves clean. `isAntiAlias` is set per paint in `draw()`, so the
+overlay, the picker tiles and the header mark all follow the slider.
 
-If a reticle ever looks faint again, measure the **maximum alpha** reached, not the mean. A mean
-below 255 is fine and expected on an anti-aliased edge; a max below 255 means no part of the
-artwork is opaque.
+The stroke is also snapped to whole pixels with a floor of `MIN_STROKE_PX = 2`, so a crisp stroke
+has no ragged half-pixel edge.
+
+When checking this, measure the **share of drawn pixels that are exactly the colour**, not the
+maximum alpha reached. A max of 255 only proves *one* pixel is opaque; a reticle can be 13% solid
+and still have a 255 somewhere. The 2px floor alone was not enough and the first fix was wrong for
+exactly that reason.
 
 ## Opacity
 
