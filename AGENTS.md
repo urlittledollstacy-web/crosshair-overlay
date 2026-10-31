@@ -127,6 +127,18 @@ it on the main thread would jank the overlay it exists to drive. It is gated on
 `prefs.autoShowEnabled`, so it costs nothing for anyone not using the feature. The foreground
 package goes on `Bridge`, so both renderers resolve one poll rather than running two.
 
+## Seeing installed apps
+
+Android 11 (API 30) and newer filter package visibility: an app sees itself plus only the
+packages it declares. A `queryIntentActivities` call with no matching `<queries>` block in the
+manifest succeeds and returns a handful of packages, so it looks like a data bug rather than a
+permission one.
+
+The manifest declares the launcher intent. That is the supported route and it returns exactly the
+apps a user can open. `QUERY_ALL_PACKAGES` is deliberately not used: it is restricted, needs a
+Play Store justification, and exposes every package on the device rather than just the launchable
+ones.
+
 ## OLED
 
 The page background is `#000000` on purpose, so those pixels are off. Surfaces step up in small

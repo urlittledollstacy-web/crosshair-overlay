@@ -17,6 +17,25 @@
 
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!--
+        Android 11 and newer filter package visibility by default: an app only sees itself plus
+        the packages it explicitly asks about. Without this block queryIntentActivities returns
+        a handful of packages and the app list comes up nearly empty.
+
+        Declaring the launcher intent is the supported way to see the apps a user can actually
+        open. It is deliberately not QUERY_ALL_PACKAGES, which is a restricted permission that
+        would expose every package on the device, installed or not, and needs a Play Store
+        justification. This asks for exactly the set the picker shows.
+
+        Ignored below API 30, where there was no filtering to begin with.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"

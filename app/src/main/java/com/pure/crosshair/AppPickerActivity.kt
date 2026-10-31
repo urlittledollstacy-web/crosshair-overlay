@@ -97,14 +97,13 @@ class AppPickerActivity : AppCompatActivity() {
     private fun loadApps(): List<AppEntry> {
         val pm = packageManager
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        // No flags: enabled, launchable activities only. What this can see is bounded by the
+        // <queries> block in the manifest, which is what makes the list complete on API 30+.
         val resolved = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            pm.queryIntentActivities(
-                intent,
-                PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_ALL.toLong())
-            )
+            pm.queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(0L))
         } else {
             @Suppress("DEPRECATION")
-            pm.queryIntentActivities(intent, PackageManager.MATCH_ALL)
+            pm.queryIntentActivities(intent, 0)
         }
 
         return resolved
