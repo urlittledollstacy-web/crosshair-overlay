@@ -49,21 +49,30 @@ class CrosshairLayer(
     val isAttached: Boolean get() = view != null
 
     /**
-     * Hides this crosshair while the tuning panel is up, but only for the renderer that the
-     * panel cannot outrank.
+     * Hides this crosshair while our own UI is up, for whichever renderer that UI cannot outrank.
      *
-     * TYPE_ACCESSIBILITY_OVERLAY is 2032 and TYPE_APPLICATION_OVERLAY is 2038, and the lower
-     * number sits on top. That ranking is the whole point of max priority mode, but it also meant
-     * the crosshair was painted over our own panel and hid the reticle strip and the controls.
-     * The normal renderer shares the panel's type and is added first, so it already sits
-     * correctly behind the panel and stays visible while you tune.
+     * Window types rank by number, lower on top:
      *
-     * State comes from [Bridge] rather than a field here, because a layer is created lazily:
-     * switching max priority on builds a new one, and it has to know the panel is already open.
+     *   TYPE_ACCESSIBILITY_OVERLAY 2032   crosshair in max priority mode
+     *   TYPE_APPLICATION_OVERLAY   2038   crosshair normally, and the tuning panel
+     *   TYPE_APPLICATION              1   an activity, and so the picker dialog
+     *
+     * Both crosshair types outrank an activity, so the crosshair is painted over the picker
+     * dialog in either mode. The tuning panel is itself an app overlay, so it only outranks the
+     * normal crosshair by being added later, and the accessibility crosshair beats it outright.
+     *
+     * So: hide for the picker always, and hide for the panel unless this is the normal renderer,
+     * which already sits behind it. State comes from [Bridge] rather than a field here, because a
+     * layer is created lazily: switching max priority on builds a new one, and it has to know
+     * what is already open.
      */
     private fun applySuppression() {
         val v = view ?: return
-        val hidden = Bridge.suppressed && windowType == ACCESSIBILITY_OVERLAY
+        val hidden = when {
+            Bridge.pickerOpen -> true
+            Bridge.panelOpen && windowType == ACCESSIBILITY_OVERLAY -> true
+            else -> false
+        } && !Bridge.moveMode
         val wanted = if (hidden) View.INVISIBLE else View.VISIBLE
         if (v.visibility != wanted) v.visibility = wanted
     }
@@ -281,12 +290,18 @@ object Bridge {
     @Volatile
     var panelOpen: Boolean = false
 
+    /**
+     * True while the "choose a crosshair" dialog is up.
+     *
+     * That is a normal activity dialog, so it ranks below both crosshair window types and the
+     * crosshair would otherwise be painted over it.
+     */
+    @Volatile
+    var pickerOpen: Boolean = false
+
     /** Move mode needs the crosshair on screen even with the panel open. */
     @Volatile
     var moveMode: Boolean = false
-
-    /** True when the crosshair should currently be hidden behind the panel. */
-    val suppressed: Boolean get() = panelOpen && !moveMode
 
     /** Re-reads settings in whichever renderers are alive. */
     fun refresh() {

@@ -247,21 +247,13 @@ class ControlPanel(
         b.reticleRow.removeAllViews()
 
         for (model in CrosshairCatalog.all) {
-            val tile = ImageView(themed).apply {
-                layoutParams = LinearLayout.LayoutParams(cell, cell).also { it.marginEnd = gap }
-                setPadding(context.dp(8), context.dp(8), context.dp(8), context.dp(8))
-                scaleType = ImageView.ScaleType.FIT_CENTER
-                setImageDrawable(model.drawable(prefs.crosshairColor, thumbnail = true))
-                background = context.getDrawable(R.drawable.bg_thumb)
-                isSelected = model.id == prefs.selected
-                contentDescription = model.name
-                setOnClickListener {
+            b.reticleRow.addView(
+                model.thumbnailTile(themed, prefs.crosshairColor, cell, gap, model.id == prefs.selected) {
                     prefs.selected = model.id
                     updatePickerSelection(b)
                     callbacks.onConfigChanged()
                 }
-            }
-            b.reticleRow.addView(tile)
+            )
         }
     }
 

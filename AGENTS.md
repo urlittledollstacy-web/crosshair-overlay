@@ -101,6 +101,16 @@ service that created it.
 `TYPE_APPLICATION_OVERLAY` will be covered by the crosshair in max priority mode, the same way the
 old panel was.
 
+## Reticle tiles
+
+Build every reticle tile with `Crosshair.thumbnailTile`. Do not hand-roll an `ImageView` for one.
+
+The picker dialog and the panel strip used to each build their own, and the dialog's copy never
+called `setImageDrawable`, so the whole grid rendered as empty boxes. It looked plausible rather
+than broken: padding, `scaleType` and a background were all set, and `tintTiles` casts the drawable
+with `as?`, so a null one fails silently and nothing crashes. The factory sets the artwork, so a new
+surface cannot forget it.
+
 ## Thumbnails versus the aiming reticle
 
 `CrosshairDrawable` takes a `thumbnail` flag, and it is not cosmetic. The two contexts want opposite

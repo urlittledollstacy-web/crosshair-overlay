@@ -200,27 +200,23 @@ class MainActivity : AppCompatActivity() {
 
         val tiles = mutableListOf<View>()
         for (model in CrosshairCatalog.all) {
-            val tile = ImageView(this).apply {
-                layoutParams = GridLayout.LayoutParams().apply {
-                    width = cell
-                    height = cell
-                    marginEnd = gap
-                    bottomMargin = gap
+            val tile = model.thumbnailTile(
+                this, prefs.crosshairColor, cell, gap, model.id == prefs.selected
+            ) {
+                prefs.selected = model.id
+                tiles.forEachIndexed { i, v ->
+                    v.isSelected = CrosshairCatalog.all[i].id == model.id
                 }
-                setPadding(dp(8), dp(8), dp(8), dp(8))
-                scaleType = ImageView.ScaleType.FIT_CENTER
-                background = ContextCompat.getDrawable(this@MainActivity, R.drawable.bg_thumb)
-                isSelected = model.id == prefs.selected
-                contentDescription = model.name
-                setOnClickListener {
-                    prefs.selected = model.id
-                    tiles.forEachIndexed { i, v ->
-                        v.isSelected = CrosshairCatalog.all[i].id == model.id
-                    }
-                    tintTiles(tiles)
-                    Bridge.refresh()
-                    refresh()
-                }
+                tintTiles(tiles)
+                Bridge.refresh()
+                refresh()
+            }
+            // GridLayout drives the cell size, so the tile's own params are replaced here.
+            tile.layoutParams = GridLayout.LayoutParams().apply {
+                width = cell
+                height = cell
+                marginEnd = gap
+                bottomMargin = gap
             }
             tiles += tile
             grid.addView(tile)
@@ -228,6 +224,16 @@ class MainActivity : AppCompatActivity() {
         tintTiles(tiles)
 
         buildColorSwatches(dialogBinding, tiles)
+
+        // The crosshair is drawn from a window that outranks an activity, so it would otherwise
+        // sit on top of this dialog. onDismiss fires however the dialog closes, including back
+        // and outside taps, so the crosshair cannot get stuck hidden.
+        dialog.setOnDismissListener {
+            Bridge.pickerOpen = false
+            Bridge.refresh()
+        }
+        Bridge.pickerOpen = true
+        Bridge.refresh()
 
         dialog.show()
     }

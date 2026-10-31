@@ -1,5 +1,6 @@
 package com.pure.crosshair
 
+import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ColorFilter
@@ -7,6 +8,8 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PixelFormat
 import android.graphics.drawable.Drawable
+import android.widget.ImageView
+import android.widget.LinearLayout
 import kotlin.math.roundToInt
 
 /**
@@ -97,6 +100,33 @@ object CrosshairCatalog {
  * Chosen to stay legible over gameplay: every one of them holds up against a mid-tone scene,
  * which is why there is no mid grey in the list.
  */
+/**
+ * Builds a reticle thumbnail tile.
+ *
+ * This exists because the picker dialog and the panel strip each used to build their own tile,
+ * and the dialog's copy never called `setImageDrawable`. The result was a grid of empty boxes
+ * that still looked plausible: padding, scaleType and a background were all set, `tintTiles`
+ * casts the drawable with `as?` so a null one fails silently, and nothing crashed. Building the
+ * tile in one place means a new surface cannot forget the artwork.
+ */
+fun Crosshair.thumbnailTile(
+    context: Context,
+    color: Int,
+    sizePx: Int,
+    gapPx: Int,
+    selected: Boolean,
+    onPick: () -> Unit
+): ImageView = ImageView(context).apply {
+    layoutParams = LinearLayout.LayoutParams(sizePx, sizePx).also { it.marginEnd = gapPx }
+    setPadding(context.dp(8), context.dp(8), context.dp(8), context.dp(8))
+    scaleType = ImageView.ScaleType.FIT_CENTER
+    setImageDrawable(drawable(color, thumbnail = true))
+    background = context.getDrawable(R.drawable.bg_thumb)
+    isSelected = selected
+    contentDescription = name
+    setOnClickListener { onPick() }
+}
+
 object CrosshairColors {
 
     val all: List<Pair<String, Int>> = listOf(
