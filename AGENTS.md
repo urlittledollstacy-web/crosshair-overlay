@@ -78,6 +78,22 @@ nothing on screen can catch a stray tap. It is the only floating way into the pa
 escape hatches must keep working: `OverlayService.openPanel()` from the main screen, and the
 notification action that toggles it back. The notification text names the hidden state.
 
+## Why a thin stroke looks see-through
+
+The crosshair artwork is drawn as anti-aliased **strokes**, not fills. An anti-aliased stroke only
+has a fully opaque core once it is at least two pixels wide; thinner than that every pixel is
+partially covered, so the line renders at roughly 60-75% alpha and reads as translucent **even
+with the opacity slider at 100 and a fully opaque window**. This is why it looked see-through in
+every colour, and why filled shapes (dot, square fill, pixel dot) never had the problem.
+
+`strokeWidth` is therefore snapped to whole pixels with a floor of `MIN_STROKE_PX = 2`. Do not
+lower that floor, and do not reintroduce a fractional width: a 1.98px stroke centred on a pixel
+boundary covers at most 60% of any pixel.
+
+If a reticle ever looks faint again, measure the **maximum alpha** reached, not the mean. A mean
+below 255 is fine and expected on an anti-aliased edge; a max below 255 means no part of the
+artwork is opaque.
+
 ## Opacity
 
 The crosshair's opacity is a feature, set on the **window** (`LayoutParams.alpha`) rather than the

@@ -119,6 +119,10 @@ This is about the *crosshair's* opacity, and it is the one place a fade is wante
 else in the app is fully opaque: the panel, the picker and the controls are solid surfaces, not
 tinted glass, so nothing behind them shows through while you tune.
 
+At 100% the crosshair is genuinely solid: the stroke is snapped to whole pixels with a minimum of
+two, because an anti-aliased line thinner than that has no fully opaque pixel and looks
+see-through no matter what the slider says.
+
 ### What no overlay can do
 
 Worth knowing before you file a bug:

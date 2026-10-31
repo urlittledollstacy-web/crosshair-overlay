@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PixelFormat
 import android.graphics.drawable.Drawable
+import kotlin.math.roundToInt
 
 /**
  * One crosshair in the built-in set.
@@ -156,7 +157,17 @@ class CrosshairDrawable(private val model: Crosshair, color: Int) : Drawable() {
 
         stroke.alpha = alphaValue
         fill.alpha = alphaValue
-        stroke.strokeWidth = (size * STROKE_RATIO).coerceAtLeast(1.2f)
+
+        // Stroke width is snapped to whole pixels, with a floor of two.
+        //
+        // An anti-aliased stroke only has a fully opaque core once it is at least two pixels
+        // wide. Thinner than that, every pixel of the line is partially covered, so the whole
+        // reticle renders at roughly 60-75% alpha and reads as see-through even with the
+        // opacity slider at 100 and a fully opaque window. Snapping to whole pixels also keeps
+        // the edge crisp rather than smeared across a pixel boundary.
+        stroke.strokeWidth = (size * STROKE_RATIO).roundToInt()
+            .coerceAtLeast(MIN_STROKE_PX)
+            .toFloat()
 
         // Art is authored at whatever extent reads best for each shape, so the unit is
         // rescaled per reticle. Without this a dot would draw at a fifth the footprint of a
@@ -184,6 +195,12 @@ class CrosshairDrawable(private val model: Crosshair, color: Int) : Drawable() {
     companion object {
         /** Stroke width as a fraction of the crosshair's edge length. */
         private const val STROKE_RATIO = 0.045f
+
+        /**
+         * Narrowest stroke, in pixels. Two is the smallest width that still has a fully
+         * covered pixel, so anything thinner would be permanently translucent.
+         */
+        private const val MIN_STROKE_PX = 2
 
         /** Art is authored within -1..1, pulled in slightly so round caps stay inside bounds. */
         private const val INNER = 0.92f
