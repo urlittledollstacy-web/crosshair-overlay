@@ -216,8 +216,12 @@ class CrosshairDrawable(
         stroke.isAntiAlias = smoothing
         fill.isAntiAlias = smoothing
 
-        // Stroke width is snapped to whole pixels, with a floor of two, so a crisp stroke has
-        // no ragged half-pixel edge and the line is always thick enough to be visible.
+        // Stroke width follows the size, snapped to whole pixels with a floor of two.
+        //
+        // Proportional so a reticle keeps its proportions at every scale instead of turning into
+        // a blob when it is blown up. Whole pixels so a crisp stroke has no ragged half-pixel
+        // edge. Two, because that is the narrowest stroke with a fully covered pixel and
+        // anything thinner is permanently translucent at 100% opacity.
         stroke.strokeWidth = (size * STROKE_RATIO).roundToInt()
             .coerceAtLeast(MIN_STROKE_PX)
             .toFloat()
@@ -226,8 +230,15 @@ class CrosshairDrawable(
         // rescaled per reticle. Without this a dot would draw at a fifth the footprint of a
         // scope at the same size setting, and the picker grid would look uneven.
         val unit = size * 0.5f * INNER * (TARGET_EXTENT / CrosshairArt.extentOf(model.id))
+
+        // Thumbnails are centred on their own artwork so the tile reads as an icon. The overlay
+        // keeps the art where it was authored, because for these shapes the origin is the point
+        // you aim with and moving it would change where the crosshair shoots.
+        val centreY = b.exactCenterY() +
+            if (thumbnail) CrosshairArt.centringShift(model.id) * unit else 0f
+
         CrosshairArt.draw(
-            canvas, model.id, stroke, fill, path, unit, b.exactCenterX(), b.exactCenterY()
+            canvas, model.id, stroke, fill, path, unit, b.exactCenterX(), centreY
         )
     }
 
@@ -311,6 +322,30 @@ private object CrosshairArt {
     )
 
     fun extentOf(id: String): Float = EXTENTS[id] ?: 0.70f
+
+    /**
+     * The authored y of each reticle's visual centre, for the few that are not symmetric about
+     * the origin.
+     *
+     * Thirty of the shapes are built around (0,0), so their centre and their aim point are the
+     * same place. These five are authored with the aiming feature at the origin instead: the tip
+     * of an arrow, the crossbar of a T, the bar of bar_dot. That is right for aiming and wrong
+     * for a thumbnail, where the tile is read as an icon and a shape sitting 3-10% off centre
+     * just looks like a mistake.
+     *
+     * Values are the midpoint of the shape's own extent in authored units, measured from the
+     * geometry, so the stroke does not affect them: it inflates the shape symmetrically.
+     */
+    private val ART_CENTRE = mapOf(
+        "bar_dot" to -0.16f,
+        "caret" to -0.12f,
+        "triangle" to -0.075f,
+        "t_dot" to 0.0725f,
+        "arrow" to 0.065f
+    )
+
+    /** How far to shift the art so its own centre lands on the box centre. */
+    fun centringShift(id: String): Float = -(ART_CENTRE[id] ?: 0f)
 
     fun draw(
         canvas: Canvas,

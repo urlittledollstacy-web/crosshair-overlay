@@ -236,6 +236,26 @@ class MainActivity : AppCompatActivity() {
         Bridge.refresh()
 
         dialog.show()
+
+        // After show(), because the grid has no width before it is laid out.
+        //
+        // The dialog is narrower than the screen, so a cell derived from screen width leaves the
+        // grid short of the dialog and GridLayout parks all the slack on the right, which reads
+        // as the whole grid sitting off-centre. Size the tiles to the grid's own width instead,
+        // with the gap only between columns so the two outer edges line up.
+        grid.post {
+            val usable = grid.width - grid.paddingStart - grid.paddingEnd
+            if (usable <= 0) return@post
+            val fitted = ((usable - gap * (columns - 1)) / columns).coerceAtLeast(1)
+            tiles.forEachIndexed { i, tile ->
+                (tile.layoutParams as? GridLayout.LayoutParams)?.let { lp ->
+                    lp.width = fitted
+                    lp.height = fitted
+                    lp.marginEnd = if ((i + 1) % columns == 0) 0 else gap
+                }
+            }
+            grid.requestLayout()
+        }
     }
 
     /** Retints the existing tiles in place instead of rebuilding 35 drawables. */

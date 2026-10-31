@@ -111,6 +111,19 @@ than broken: padding, `scaleType` and a background were all set, and `tintTiles`
 with `as?`, so a null one fails silently and nothing crashes. The factory sets the artwork, so a new
 surface cannot forget it.
 
+## Centring a tile
+
+A thumbnail is centred on its own artwork, not on the origin. Thirty of the shapes are built
+around (0,0), so the two are the same; the five in `CrosshairArt.ART_CENTRE` are not. They are
+authored with the aiming feature at the origin, which is right for the overlay and wrong for a
+tile, where a shape sitting 3-10% off centre just looks like a mistake. `CrosshairDrawable`
+applies the shift only when `thumbnail` is true, so aiming never moves.
+
+Size the picker's tiles from the grid's measured width, not the screen width. The dialog is
+narrower than the screen, and a cell derived from screen width leaves the grid short of it, with
+`GridLayout` parking all the slack on the right. That reads as the whole grid shifted left, which
+is easy to mistake for the icons being off centre one by one.
+
 ## Thumbnails versus the aiming reticle
 
 `CrosshairDrawable` takes a `thumbnail` flag, and it is not cosmetic. The two contexts want opposite
