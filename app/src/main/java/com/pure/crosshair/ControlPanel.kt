@@ -3,6 +3,7 @@ package com.pure.crosshair
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -13,11 +14,12 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
+import android.widget.GridLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.TextView
-import android.widget.Toast
 import android.widget.SeekBar
+import android.widget.TextView
 import com.pure.crosshair.databinding.OverlayPanelBinding
 import kotlin.math.ln
 import kotlin.math.pow
@@ -39,9 +41,6 @@ class ControlPanel(
         /** A value changed and the crosshair needs redrawing. */
         fun onConfigChanged()
 
-        /** The user tapped the import tile. */
-        fun onImportRequested()
-
         /** Move mode was switched on or off. */
         fun onMoveModeChanged(enabled: Boolean)
 
@@ -50,7 +49,6 @@ class ControlPanel(
     }
 
     private val wm = context.windowManager()
-    private val library = Library(context)
     private var binding: OverlayPanelBinding? = null
     private var themed: Context? = null
 
@@ -86,6 +84,7 @@ class ControlPanel(
         }
 
         buildPicker(b)
+        buildColors(b)
         wireControls(b)
         syncFromPrefs()
 
@@ -115,6 +114,18 @@ class ControlPanel(
         }
         b.panelRoot.requestFocus()
 
+        // The card holds a grid plus five sliders, so on a short screen it can outgrow the
+        // display. Once measured, cap the window and let the card scroll inside it.
+        b.panelRoot.post {
+            val cap = (context.screenSize().y * MAX_HEIGHT_FRACTION).toInt()
+            if (b.panelRoot.height > cap) {
+                lp.height = cap
+                b.panelCard.layoutParams = (b.panelCard.layoutParams as FrameLayout.LayoutParams)
+                    .apply { height = FrameLayout.LayoutParams.MATCH_PARENT }
+                runCatching { wm.updateViewLayout(b.panelRoot, lp) }
+            }
+        }
+
         b.panelCard.post {
             b.panelCard.translationY = b.panelCard.height.toFloat()
             b.panelCard.alpha = 0f
@@ -124,8 +135,6 @@ class ControlPanel(
                 .setDuration(200)
                 .start()
         }
-
-        scrollPickerToSelection(b)
     }
 
     fun hide() {
@@ -194,89 +203,98 @@ class ControlPanel(
 
     // ---------------------------------------------------------------- internals
 
-    /** Called after an import or delete so the strip reflects the library. */
-    fun reloadLibrary() {
-        val b = binding ?: return
-        buildPicker(b)
-        syncFromPrefs()
-    }
-
+    /**
+     * The crosshair grid.
+     *
+     * Cell width is derived from the screen rather than measured, so the grid lays out
+     * correctly on the first frame instead of reflowing once it has been attached.
+     */
     private fun buildPicker(b: OverlayPanelBinding) {
         val themed = this.themed ?: return
-        val cell = context.dp(48)
-        val gap = context.dp(6)
-        val pad = context.dp(6)
+        val gap = context.dp(GRID_GAP_DP)
+        val available = context.screenSize().x - context.dp(PANEL_INSET_DP)
+        val cell = ((available - gap * (GRID_COLUMNS - 1)) / GRID_COLUMNS)
+            .coerceAtLeast(context.dp(40))
 
-        b.pickerRow.removeAllViews()
+        b.pickerGrid.removeAllViews()
+        b.pickerGrid.columnCount = GRID_COLUMNS
 
-        // Import tile always sits first, so there is a way in even when the library is empty.
-        val add = TextView(themed).apply {
-            layoutParams = LinearLayout.LayoutParams(cell, cell).also { it.marginEnd = gap }
-            text = "+"
-            gravity = Gravity.CENTER
-            textSize = 22f
-            setTextColor(context.getColor(R.color.accent))
-            setBackgroundResource(R.drawable.bg_thumb)
-            contentDescription = context.getString(R.string.import_image)
-            setOnClickListener { callbacks.onImportRequested() }
-        }
-        b.pickerRow.addView(add)
-
-        val images = library.list()
-        b.pickerEmpty.visibility = if (images.isEmpty()) View.VISIBLE else View.GONE
-
-        for (file in images) {
-            val bitmap = Library.decode(file, Library.THUMB_PX) ?: continue
-            val thumb = ImageView(themed).apply {
-                layoutParams = LinearLayout.LayoutParams(cell, cell).also { it.marginEnd = gap }
-                setPadding(pad, pad, pad, pad)
-                setImageBitmap(bitmap)
-                setBackgroundResource(R.drawable.bg_thumb)
+        for (model in CrosshairCatalog.all) {
+            val tile = ImageView(themed).apply {
+                layoutParams = GridLayout.LayoutParams().apply {
+                    width = cell
+                    height = cell
+                    marginEnd = gap
+                    bottomMargin = gap
+                }
+                setPadding(context.dp(8), context.dp(8), context.dp(8), context.dp(8))
                 scaleType = ImageView.ScaleType.FIT_CENTER
-                isSelected = file.name == prefs.selected
-                contentDescription = context.getString(R.string.imported_crosshair)
+                setImageDrawable(model.drawable(prefs.crosshairColor))
+                background = context.getDrawable(R.drawable.bg_thumb)
+                isSelected = model.id == prefs.selected
+                contentDescription = model.name
                 setOnClickListener {
-                    prefs.selected = file.name
+                    prefs.selected = model.id
                     updatePickerSelection(b)
                     callbacks.onConfigChanged()
                 }
-                setOnLongClickListener {
-                    removeImage(file.name)
-                    true
-                }
             }
-            b.pickerRow.addView(thumb)
+            b.pickerGrid.addView(tile)
         }
     }
 
-    /** Long press deletes. The original file on the device is untouched. */
-    private fun removeImage(name: String) {
-        val fallback = library.neighbourOf(name)
-        library.delete(name)
-        if (prefs.selected == name) prefs.selected = fallback.orEmpty()
-        Toast.makeText(context, R.string.crosshair_removed, Toast.LENGTH_SHORT).show()
-        reloadLibrary()
-        callbacks.onConfigChanged()
+    /** The colour row: a ring per colour, filled with that colour. */
+    private fun buildColors(b: OverlayPanelBinding) {
+        val themed = this.themed ?: return
+        val slot = context.dp(32)
+        val fill = context.dp(20)
+        val gap = context.dp(8)
+
+        b.colorRow.removeAllViews()
+
+        for ((name, color) in CrosshairColors.all) {
+            val swatch = FrameLayout(themed).apply {
+                layoutParams = LinearLayout.LayoutParams(slot, slot).also { it.marginEnd = gap }
+                background = context.getDrawable(R.drawable.bg_swatch_slot)
+                isSelected = color == prefs.crosshairColor
+                contentDescription = name
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    prefs.crosshairColor = color
+                    updatePickerSelection(b)
+                    callbacks.onConfigChanged()
+                }
+            }
+            swatch.addView(
+                View(themed).apply {
+                    layoutParams = FrameLayout.LayoutParams(fill, fill, Gravity.CENTER)
+                    background = GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(color)
+                    }
+                }
+            )
+            b.colorRow.addView(swatch)
+        }
     }
 
     private fun updatePickerSelection(b: OverlayPanelBinding) {
-        val images = library.list()
-        // Child 0 is the import tile, so image i lives at child i + 1.
-        for (i in images.indices) {
-            b.pickerRow.getChildAt(i + 1)?.isSelected = images[i].name == prefs.selected
+        val models = CrosshairCatalog.all
+        for (i in models.indices) {
+            b.pickerGrid.getChildAt(i)?.isSelected = models[i].id == prefs.selected
         }
-    }
-
-    private fun scrollPickerToSelection(b: OverlayPanelBinding) {
-        b.pickerScroll.post {
-            val index = library.list().indexOfFirst { it.name == prefs.selected }
-            if (index < 0) return@post
-            val child = b.pickerRow.getChildAt(index + 1) ?: return@post
-            b.pickerScroll.smoothScrollTo(
-                child.left - b.pickerScroll.width / 2 + child.width / 2,
-                0
-            )
+        // Swatches sit in the same order as the palette, so index lookup is enough.
+        val colorIndex = CrosshairColors.all.indexOfFirst { it.second == prefs.crosshairColor }
+        for (i in 0 until b.colorRow.childCount) {
+            b.colorRow.getChildAt(i).isSelected = i == colorIndex
         }
+        // Tiles are tinted at build time, so a colour change means redrawing them.
+        for (i in models.indices) {
+            (b.pickerGrid.getChildAt(i) as? ImageView)
+                ?.setImageDrawable(models[i].drawable(prefs.crosshairColor))
+        }
+        b.valueCrosshair.text = CrosshairCatalog.name(prefs.selected)
     }
 
     private fun wireControls(b: OverlayPanelBinding) {
@@ -446,6 +464,15 @@ class ControlPanel(
         /** Slider resolution. Combined with the log curve this is well under 1dp per step
          *  through the range people actually use. */
         private const val SIZE_STEPS = 1000
+
+        /** Margins plus content padding the panel takes off the screen width. */
+        private const val PANEL_INSET_DP = 24 + 32
+
+        private const val GRID_COLUMNS = 5
+        private const val GRID_GAP_DP = 8
+
+        /** Tallest the panel may get before the card starts scrolling. */
+        private const val MAX_HEIGHT_FRACTION = 0.86f
 
         private const val REPEAT_FIRST_MS = 380L
         private const val REPEAT_MIN_MS = 35L

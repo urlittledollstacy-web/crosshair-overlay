@@ -133,7 +133,7 @@
                 android:textSize="13sp" />
         </LinearLayout>
 
-        <!-- Crosshair images -->
+        <!-- Crosshair -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -154,30 +154,40 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/your_crosshairs" />
+                    android:text="@string/card_crosshair" />
 
                 <TextView
-                    android:id="@+id/library_count"
+                    android:id="@+id/crosshair_name"
                     style="@style/Readout"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content" />
             </LinearLayout>
+
+            <ImageView
+                android:id="@+id/crosshair_preview"
+                android:layout_width="match_parent"
+                android:layout_height="96dp"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/bg_well"
+                android:contentDescription="@string/preview_description"
+                android:padding="16dp"
+                android:scaleType="fitCenter" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:lineSpacingExtra="4dp"
-                android:text="@string/library_body"
+                android:text="@string/crosshair_body"
                 android:textColor="@color/muted"
                 android:textSize="13sp" />
 
             <TextView
-                android:id="@+id/btn_import"
+                android:id="@+id/btn_choose"
                 style="@style/Pill"
                 android:layout_width="match_parent"
                 android:layout_marginTop="16dp"
-                android:text="@string/import_image" />
+                android:text="@string/choose_crosshair" />
         </LinearLayout>
 
         <!-- Max priority -->

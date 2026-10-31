@@ -4,22 +4,29 @@ import android.Manifest
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.view.Gravity
 import android.view.View
+import android.widget.FrameLayout
+import android.widget.GridLayout
+import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.pure.crosshair.databinding.ActivityMainBinding
+import com.pure.crosshair.databinding.DialogCrosshairPickerBinding
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var prefs: Prefs
-    private lateinit var library: Library
 
     private val requestNotifications =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -32,12 +39,9 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         prefs = Prefs(this)
-        library = Library(this)
 
         binding.btnGrant.setOnClickListener { requestOverlayPermission() }
-        binding.btnImport.setOnClickListener {
-            startActivity(Intent(this, ImportActivity::class.java))
-        }
+        binding.btnChoose.setOnClickListener { showCrosshairPicker() }
         binding.btnPrimary.setOnClickListener { onPrimaryClicked() }
         binding.btnPriority.setOnClickListener { onPriorityClicked() }
         binding.btnSnap.setOnClickListener {
@@ -79,20 +83,13 @@ class MainActivity : AppCompatActivity() {
         binding.btnPrimary.isEnabled = granted
         binding.btnPrimary.alpha = if (granted) 1f else 0.4f
 
-        val images = library.list().size
-        binding.libraryCount.text = when (images) {
-            0 -> getString(R.string.library_none)
-            1 -> getString(R.string.library_one)
-            else -> getString(R.string.library_n, images)
-        }
-
-        binding.statusLine.setText(
-            when {
-                images == 0 -> R.string.need_an_image
-                running -> R.string.running
-                else -> R.string.not_running
-            }
+        binding.crosshairName.text = CrosshairCatalog.name(prefs.selected)
+        binding.crosshairPreview.setImageDrawable(
+            CrosshairCatalog.byId(prefs.selected)?.drawable(prefs.crosshairColor)
+                ?: CrosshairCatalog.default.drawable(prefs.crosshairColor)
         )
+
+        binding.statusLine.setText(if (running) R.string.running else R.string.not_running)
         binding.statusDot.visibility = if (running) View.VISIBLE else View.GONE
 
         val priorityOn = prefs.maxPriority && isMaxPriorityEnabled()
@@ -154,6 +151,119 @@ class MainActivity : AppCompatActivity() {
         refresh()
     }
 
+    /**
+     * The crosshair picker.
+     *
+     * A dialog rather than a screen: choosing a reticle is a small decision made in place, and
+     * a full screen for it would cost a navigation step each time.
+     */
+    private fun showCrosshairPicker() {
+        val dialogBinding = DialogCrosshairPickerBinding.inflate(layoutInflater)
+        val dialog = AlertDialog.Builder(this, R.style.Theme_Crosshair_Dialog)
+            .setTitle(R.string.picker_title)
+            .setView(dialogBinding.root)
+            .setPositiveButton(R.string.picker_done, null)
+            .create()
+
+        val gap = resources.getDimensionPixelSize(R.dimen.picker_gap)
+        val columns = PICKER_COLUMNS
+        val grid = dialogBinding.pickerGrid
+        grid.columnCount = columns
+
+        val screenWidth = resources.displayMetrics.widthPixels
+        val available = screenWidth - resources.getDimensionPixelSize(R.dimen.picker_inset)
+        val cell = ((available - gap * (columns - 1)) / columns).coerceAtLeast(dp(44))
+
+        val tiles = mutableListOf<View>()
+        for (model in CrosshairCatalog.all) {
+            val tile = ImageView(this).apply {
+                layoutParams = GridLayout.LayoutParams().apply {
+                    width = cell
+                    height = cell
+                    marginEnd = gap
+                    bottomMargin = gap
+                }
+                setPadding(dp(8), dp(8), dp(8), dp(8))
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                background = ContextCompat.getDrawable(this@MainActivity, R.drawable.bg_thumb)
+                isSelected = model.id == prefs.selected
+                contentDescription = model.name
+                setOnClickListener {
+                    prefs.selected = model.id
+                    tiles.forEachIndexed { i, v ->
+                        v.isSelected = CrosshairCatalog.all[i].id == model.id
+                    }
+                    tintTiles(tiles)
+                    Bridge.refresh()
+                    refresh()
+                }
+            }
+            tiles += tile
+            grid.addView(tile)
+        }
+        tintTiles(tiles)
+
+        dialogBinding.colorRow.post {
+            buildColorSwatches(dialogBinding, tiles)
+        }
+        if (dialogBinding.colorRow.childCount == 0) buildColorSwatches(dialogBinding, tiles)
+
+        dialog.show()
+    }
+
+    private fun tintTiles(tiles: List<View>) {
+        tiles.forEachIndexed { i, v ->
+            (v as? ImageView)?.setImageDrawable(
+                CrosshairCatalog.all[i].drawable(prefs.crosshairColor)
+            )
+        }
+    }
+
+    /** A ring per colour, filled with that colour. Tapping one retints the grid immediately. */
+    private fun buildColorSwatches(
+        b: DialogCrosshairPickerBinding,
+        tiles: List<View>
+    ) {
+        val slot = dp(36)
+        val fill = dp(22)
+        val gap = dp(8)
+        b.colorRow.removeAllViews()
+
+        for ((name, color) in CrosshairColors.all) {
+            val swatch = FrameLayout(this).apply {
+                layoutParams = LinearLayout.LayoutParams(slot, slot).also { it.marginEnd = gap }
+                background = ContextCompat.getDrawable(this@MainActivity, R.drawable.bg_swatch_slot)
+                isSelected = color == prefs.crosshairColor
+                contentDescription = name
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    prefs.crosshairColor = color
+                    for (i in 0 until b.colorRow.childCount) {
+                        b.colorRow.getChildAt(i).isSelected = i == CrosshairColors.all.indexOfFirst {
+                            it.second == color
+                        }
+                    }
+                    tintTiles(tiles)
+                    Bridge.refresh()
+                    refresh()
+                }
+            }
+            swatch.addView(
+                View(this).apply {
+                    layoutParams = FrameLayout.LayoutParams(fill, fill, Gravity.CENTER)
+                    background = GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(color)
+                    }
+                }
+            )
+            b.colorRow.addView(swatch)
+        }
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
     private fun requestOverlayPermission() {
         runCatching {
             startActivity(
@@ -163,6 +273,11 @@ class MainActivity : AppCompatActivity() {
                 )
             )
         }
+    }
+
+    companion object {
+        /** Five columns keeps a tile around 56dp on a normal phone, which is a comfortable tap. */
+        private const val PICKER_COLUMNS = 5
     }
 
     /** True when the user has switched our accessibility service on in system settings. */

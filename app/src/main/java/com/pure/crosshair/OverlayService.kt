@@ -36,7 +36,6 @@ import kotlin.math.hypot
 class OverlayService : Service(), ControlPanel.Callbacks {
 
     private lateinit var prefs: Prefs
-    private lateinit var library: Library
     private val wm by lazy { windowManager() }
     private val handler = Handler(Looper.getMainLooper())
 
@@ -50,7 +49,6 @@ class OverlayService : Service(), ControlPanel.Callbacks {
     override fun onCreate() {
         super.onCreate()
         prefs = Prefs(this)
-        library = Library(this)
 
         createChannel()
         goForeground()
@@ -155,8 +153,7 @@ class OverlayService : Service(), ControlPanel.Callbacks {
                 it.onMoved = ::onCrosshairMoved
                 layer = it
             }
-            val hasImage = library.file(prefs.selected) != null
-            if (prefs.visible && hasImage) current.show(prefs) else current.hide()
+            if (prefs.visible) current.show(prefs) else current.hide()
         }
 
         updateNotification()
@@ -188,30 +185,6 @@ class OverlayService : Service(), ControlPanel.Callbacks {
 
     override fun onStopRequested() {
         stopSelf()
-    }
-
-    override fun onImportRequested() {
-        // The panel is an overlay window, so it would sit on top of the file picker.
-        panel?.hide()
-        runCatching {
-            startActivity(
-                Intent(this, ImportActivity::class.java)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
-            )
-        }
-    }
-
-    /** Called after an image is imported or deleted. */
-    fun onLibraryChanged() {
-        handler.post {
-            if (panel?.isShowing == true) {
-                panel?.reloadLibrary()
-            } else {
-                panel?.show()
-                panel?.syncFromPrefs()
-            }
-            applyConfig()
-        }
     }
 
     private fun activeLayer(): CrosshairLayer? =

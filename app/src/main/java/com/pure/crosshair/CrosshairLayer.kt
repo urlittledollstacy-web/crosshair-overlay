@@ -3,7 +3,7 @@ package com.pure.crosshair
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.PixelFormat
-import android.graphics.drawable.AnimatedImageDrawable
+import android.graphics.drawable.Drawable
 import android.os.Build
 import android.view.Gravity
 import android.view.MotionEvent
@@ -27,12 +27,13 @@ class CrosshairLayer(
 ) {
 
     private val wm = context.windowManager()
-    private val library = Library(context)
     private var view: ImageView? = null
     private var params: WindowManager.LayoutParams? = null
 
-    /** Which image is currently decoded into the view, so slider drags do not re-decode. */
-    private var loadedName: String? = null
+    /** What is currently drawn, so slider drags do not rebuild the artwork. */
+    private var loadedId: String? = null
+    private var loadedColor: Int = 0
+    private var loadedDrawable: Drawable? = null
 
     /** Called with the new centre offset while the crosshair is being dragged. */
     var onMoved: ((x: Int, y: Int) -> Unit)? = null
@@ -43,11 +44,6 @@ class CrosshairLayer(
 
     /** Adds the window if needed, then pushes the current settings into it. */
     fun show(prefs: Prefs) {
-        // Nothing to draw until the user has imported at least one image.
-        if (library.file(prefs.selected) == null) {
-            hide()
-            return
-        }
         if (view == null) attach()
         update(prefs)
     }
@@ -69,32 +65,27 @@ class CrosshairLayer(
         // but leaves the window at alpha 1.0, so taps would get blocked at every setting.
         p.alpha = prefs.opacity / 100f
 
-        val file = library.file(prefs.selected)
-        if (file == null) {
-            hide()
-            return
-        }
-        if (loadedName != prefs.selected) {
-            val drawable = Library.loadDrawable(context, file)
-            if (drawable == null) {
-                hide()
-                return
-            }
+        val model = CrosshairCatalog.byId(prefs.selected) ?: CrosshairCatalog.default
+        if (loadedId != model.id || loadedColor != prefs.crosshairColor) {
+            val drawable = model.drawable(prefs.crosshairColor)
+            loadedDrawable = drawable
             v.setImageDrawable(drawable)
-            // Animated GIF and WebP do not play until told to.
-            (drawable as? AnimatedImageDrawable)?.start()
-            loadedName = prefs.selected
+            loadedId = model.id
+            loadedColor = prefs.crosshairColor
         }
+        // The window itself stays fully opaque; opacity is applied through the window alpha
+        // above, so the artwork never has to be re-rendered just to fade it.
+        loadedDrawable?.alpha = 255
 
         runCatching { wm.updateViewLayout(v, p) }
     }
 
     fun hide() {
-        (view?.drawable as? AnimatedImageDrawable)?.stop()
         view?.let { v -> runCatching { wm.removeViewImmediate(v) } }
         view = null
         params = null
-        loadedName = null
+        loadedId = null
+        loadedDrawable = null
     }
 
     /**

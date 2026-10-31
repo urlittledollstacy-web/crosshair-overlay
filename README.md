@@ -7,7 +7,8 @@ using, and it never takes a tap — even at 100% opacity.
   the app underneath at every opacity setting. It is a purely visual layer.
 - **Floating control button.** A draggable sigil sits on top of everything. Tap it to tune
   position, size and opacity live, without leaving the app you are in.
-- **35 bundled crosshairs**, sliced from the source sheet. Swappable for your own PNGs.
+- **35 built-in crosshairs**, drawn as vectors so they stay sharp at any size. Pick one from
+the panel or from the picker in the app; no image files to import.
 - **Minimum Android 8.0** (API 26).
 
 ---
@@ -63,6 +64,8 @@ Open the folder in Android Studio and hit Run, or:
 | Tap the floating sigil | Opens the tuning panel |
 | Drag the floating sigil | Moves it; it snaps to the nearest edge |
 | Long press the floating sigil | Shows or hides the crosshair |
+| Crosshair row in the panel | Switches reticle, live |
+| Choose crosshair on the main screen | Opens the full picker, with colour |
 | **Move** in the panel | Makes the crosshair draggable until you tap **Done** |
 | Tap the crosshair while in Move mode | Snaps it back to dead centre |
 | **−** / **+** next to the position sliders | Nudges by exactly one pixel |
@@ -122,17 +125,22 @@ Worth knowing before you file a bug:
 
 ---
 
-## Swapping in your own crosshairs
+## Adding your own crosshairs
 
-1. Drop transparent PNGs into `app/src/main/res/drawable-nodpi/`. Lowercase names, digits and
-   underscores only.
-2. Add them to the list in `app/src/main/java/com/pure/crosshair/Catalog.kt`.
+Reticles are drawn from primitives, so there are no image files to ship and nothing to
+import. To add one, open `app/src/main/java/com/pure/crosshair/Catalog.kt` and:
 
-Entry 0 does double duty as the launcher icon and the floating button icon, so if you replace it,
-regenerate the icons in `app/src/main/res/mipmap-*/` too.
+1. Add an entry to the `all` list with a unique `id` and a display `name`.
+2. Add its extent to the `EXTENTS` map in `CrosshairArt` — the largest coordinate magnitude
+   the shape draws, in authored units. This is what normalises footprints so every reticle
+   looks the same size at a given setting.
+3. Add a branch to the `when (id)` in `CrosshairArt.draw`. Coordinates run from -1 to 1 with
+   the origin at the centre, and the aiming point is the origin. Shapes are built from
+   `line`, `poly`, `rect`, `dot`, `ring`, `ticks` and `brackets`.
 
-Square images work best. The image centre is the aiming point, so centre your artwork in the
-canvas or plan on nudging it with the position sliders.
+Reticles are scaled so every shape occupies the same fraction of the box, which keeps the
+picker grid even. The launcher icon and the floating button icon are the `ic_sigil` drawable,
+independent of the catalog, so adding a crosshair never changes the app icon.
 
 ## Permissions and why
 
@@ -155,6 +163,6 @@ app/src/main/java/com/pure/crosshair/
   CrosshairLayer.kt      The crosshair window itself, plus the Bridge between renderers
   ControlPanel.kt        The tuning panel
   MaxPriorityService.kt  Optional accessibility renderer
-  Catalog.kt             The 35 crosshair drawables
+  Catalog.kt             The 35 crosshair shapes, drawn as vectors
   Prefs.kt               Settings
 ```

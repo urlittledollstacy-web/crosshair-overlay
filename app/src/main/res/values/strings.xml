@@ -18,6 +18,8 @@
     <string name="option_priority_body">Draws the crosshair from an accessibility service, one layer above normal app overlays. Useful if another floating app keeps covering it. Optional.</string>
     <string name="option_boot_title">Start after reboot</string>
     <string name="option_boot_body">Brings the overlay back on its own when the phone restarts.</string>
+    <string name="option_snap_title">Snap button to edge</string>
+    <string name="option_snap_body">Off by default, so the floating button stays wherever you drop it, middle of the screen included. Turn on to have it spring back to the nearest side.</string>
     <string name="on">On</string>
     <string name="off">Off</string>
     <string name="setup">Set up</string>
@@ -31,7 +33,8 @@
     <!-- Panel -->
     <string name="panel_title">Crosshair</string>
     <string name="close">Close</string>
-    <string name="label_style">Style</string>
+    <string name="label_crosshair">Crosshair</string>
+    <string name="label_colour">Colour</string>
     <string name="label_size">Size</string>
     <string name="label_opacity">Opacity</string>
     <string name="label_x">Horizontal</string>
@@ -65,17 +68,11 @@
     <string name="a11y_description">Turn this on only if you want the crosshair to outrank other floating apps. It draws the crosshair and nothing else. It does not read the screen, record input, or collect any data.</string>
     <string name="a11y_toast">Find Crosshair in this list and turn it on.</string>
 
-    <!-- Image library -->
-    <string name="your_crosshairs">Your crosshairs</string>
-    <string name="library_body">Import any PNG, WebP or JPG. Transparent PNGs work best. Images are copied into the app, so moving or deleting the original afterwards is fine.</string>
-    <string name="import_image">Import image</string>
-    <string name="imported_crosshair">Imported crosshair</string>
-    <string name="picker_empty">Nothing imported yet. Tap + to add an image.</string>
-    <string name="crosshair_removed">Removed</string>
-    <string name="import_failed">That file could not be read as an image.</string>
-    <string name="import_no_picker">No file picker available on this device.</string>
-    <string name="library_none">None yet</string>
-    <string name="library_one">1 imported</string>
-    <string name="library_n">%1$d imported</string>
-    <string name="need_an_image">Import an image to get started</string>
+    <!-- Crosshair picker -->
+    <string name="card_crosshair">Crosshair</string>
+    <string name="crosshair_body">Thirty reticles, drawn sharp at any size. Pick one here, then tune it from the floating panel.</string>
+    <string name="choose_crosshair">Choose crosshair</string>
+    <string name="picker_title">Choose a crosshair</string>
+    <string name="picker_done">Done</string>
+    <string name="preview_description">Preview of the selected crosshair</string>
 </resources>

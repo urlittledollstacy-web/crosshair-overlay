@@ -10,13 +10,16 @@
         <item name="colorAccent">@color/accent</item>
     </style>
 
-    <!-- ImportActivity exists only to host the system file picker, so it draws nothing. -->
-    <style name="Theme.Crosshair.Invisible" parent="Theme.AppCompat.NoActionBar">
+    <!--
+        The picker dialog. Without an explicit dark parent the platform builds a light
+        AlertDialog, which would land as a white slab on the dark app.
+    -->
+    <style name="Theme.Crosshair.Dialog" parent="Theme.AppCompat.Dialog.Alert">
+        <item name="colorAccent">@color/accent</item>
+        <item name="android:textColorPrimary">@color/text</item>
+        <item name="android:textColorSecondary">@color/muted</item>
+        <item name="android:background">@color/surface</item>
         <item name="android:windowBackground">@android:color/transparent</item>
-        <item name="android:windowIsTranslucent">true</item>
-        <item name="android:windowContentOverlay">@null</item>
-        <item name="android:windowAnimationStyle">@null</item>
-        <item name="android:backgroundDimEnabled">false</item>
     </style>
 
     <!-- Used for views inflated by the service, which has no activity theme of its own. -->

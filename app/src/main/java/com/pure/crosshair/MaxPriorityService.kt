@@ -60,8 +60,7 @@ class MaxPriorityService : AccessibilityService() {
     fun applyConfig() {
         if (!::prefs.isInitialized) prefs = Prefs(this)
 
-        val hasImage = Library(this).file(prefs.selected) != null
-        val shouldDraw = prefs.maxPriority && prefs.visible && hasImage && OverlayService.isRunning
+        val shouldDraw = prefs.maxPriority && prefs.visible && OverlayService.isRunning
         if (!shouldDraw) {
             layer?.hide()
             layer = null

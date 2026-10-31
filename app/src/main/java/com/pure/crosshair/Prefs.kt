@@ -26,10 +26,17 @@ class Prefs(context: Context) {
             return if (size.x > size.y) "_land" else "_port"
         }
 
-    /** File name of the selected image in [Library]. Empty when nothing is imported yet. */
+    /** Id of the selected crosshair in [CrosshairCatalog]. Unknown ids fall back to the default. */
     var selected: String
         get() = sp.getString(KEY_SELECTED, "").orEmpty()
+            .takeIf { CrosshairCatalog.isValid(it) }
+            ?: CrosshairCatalog.default.id
         set(value) = sp.edit { putString(KEY_SELECTED, value) }
+
+    /** Colour the crosshair is drawn in, as ARGB. */
+    var crosshairColor: Int
+        get() = sp.getInt(KEY_COLOR, CrosshairColors.default)
+        set(value) = sp.edit { putInt(KEY_COLOR, value) }
 
     /** Crosshair edge length in dp. */
     var sizeDp: Int
@@ -86,13 +93,14 @@ class Prefs(context: Context) {
 
     companion object {
         // Wide range on purpose: a 4dp aiming dot and a near full screen reticle are both
-        // legitimate uses, and imported artwork varies enormously in how much padding it has.
+        // legitimate uses, and every reticle is normalised to the same footprint.
         const val MIN_SIZE = 4
         const val MAX_SIZE = 1200
         const val DEFAULT_SIZE = 96
         const val MIN_OPACITY = 5
 
         private const val KEY_SELECTED = "selected"
+        private const val KEY_COLOR = "crosshair_color"
         private const val KEY_SIZE = "size_dp"
         private const val KEY_OPACITY = "opacity"
         private const val KEY_X = "offset_x"

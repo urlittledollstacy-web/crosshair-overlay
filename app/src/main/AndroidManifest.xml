@@ -33,14 +33,6 @@
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".ImportActivity"
-            android:excludeFromRecents="true"
-            android:exported="false"
-            android:launchMode="singleTop"
-            android:taskAffinity=""
-            android:theme="@style/Theme.Crosshair.Invisible" />
-
         <service
             android:name=".OverlayService"
             android:exported="false"
