@@ -64,7 +64,7 @@ class OverlayService : Service(), ControlPanel.Callbacks {
         isRunning = true
 
         panel = ControlPanel(this, prefs, this)
-        addButton()
+        if (!prefs.buttonHidden) addButton()
 
         // Refresh both renderers, not just ours, so a hand off to max priority mode
         // happens on the very first start rather than on the next settings change.
@@ -77,6 +77,12 @@ class OverlayService : Service(), ControlPanel.Callbacks {
                 prefs.visible = !prefs.visible
                 Bridge.refresh()
                 panel?.syncFromPrefs()
+            }
+
+
+
+            ACTION_TOGGLE_BUTTON -> {
+                setButtonHidden(!prefs.buttonHidden)
             }
 
             ACTION_STOP -> {
@@ -165,6 +171,19 @@ class OverlayService : Service(), ControlPanel.Callbacks {
         panel?.syncPosition()
     }
 
+    /**
+     * Opens the panel from outside the overlay, i.e. from the app.
+     *
+     * Needed because hiding the button also removes the only floating way in, and the
+     * notification is not where everyone looks.
+     */
+    fun openPanel() {
+        panel?.let { p ->
+            if (!p.isShowing) p.show()
+            p.syncFromPrefs()
+        }
+    }
+
     /** Lets the accessibility renderer keep the panel sliders in step while dragging. */
     fun notifyMoved() {
         panel?.syncPosition()
@@ -195,6 +214,25 @@ class OverlayService : Service(), ControlPanel.Callbacks {
         }
 
     // ------------------------------------------------------------ floating button
+
+    /**
+     * Shows or hides the floating button.
+     *
+     * The window is removed rather than hidden, so there is nothing on screen to catch a stray
+     * tap. The panel is still reachable from the notification and the main screen.
+     */
+    fun setButtonHidden(hidden: Boolean) {
+        prefs.buttonHidden = hidden
+        if (hidden) {
+            panel?.hide()
+            button?.let { v -> runCatching { wm.removeViewImmediate(v) } }
+            button = null
+            buttonParams = null
+        } else if (button == null) {
+            addButton()
+        }
+        updateNotification()
+    }
 
     @SuppressLint("ClickableViewAccessibility")
     private fun addButton() {
@@ -388,8 +426,20 @@ class OverlayService : Service(), ControlPanel.Callbacks {
             Intent(this, OverlayService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_IMMUTABLE
         )
+        val button = PendingIntent.getService(
+            this,
+            3,
+            Intent(this, OverlayService::class.java).setAction(ACTION_TOGGLE_BUTTON),
+            PendingIntent.FLAG_IMMUTABLE
+        )
 
-        val state = if (prefs.visible) R.string.notif_showing else R.string.notif_hidden
+        // With the button hidden the panel has no floating way in, so the notification says
+        // where to find it instead of leaving the user with no obvious route.
+        val state = when {
+            !prefs.buttonHidden -> if (prefs.visible) R.string.notif_showing else R.string.notif_hidden
+            prefs.visible -> R.string.notif_showing_no_button
+            else -> R.string.notif_hidden_no_button
+        }
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
@@ -406,12 +456,18 @@ class OverlayService : Service(), ControlPanel.Callbacks {
                 getString(if (prefs.visible) R.string.action_hide else R.string.action_show),
                 toggle
             )
+            .addAction(
+                0,
+                getString(if (prefs.buttonHidden) R.string.action_show_button else R.string.action_hide_button),
+                button
+            )
             .addAction(0, getString(R.string.action_stop), stop)
             .build()
     }
 
     companion object {
         const val ACTION_TOGGLE = "com.pure.crosshair.action.TOGGLE"
+        const val ACTION_TOGGLE_BUTTON = "com.pure.crosshair.action.TOGGLE_BUTTON"
         const val ACTION_STOP = "com.pure.crosshair.action.STOP"
 
         private const val CHANNEL_ID = "overlay"

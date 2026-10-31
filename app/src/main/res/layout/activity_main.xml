@@ -133,6 +133,14 @@
                 android:textSize="13sp" />
         </LinearLayout>
 
+        <!-- Opens the tuning panel without the floating button. -->
+        <TextView
+            android:id="@+id/btn_open_panel"
+            style="@style/Pill"
+            android:layout_width="match_parent"
+            android:layout_marginTop="16dp"
+            android:text="@string/open_panel" />
+
         <!-- Crosshair -->
         <LinearLayout
             android:layout_width="match_parent"
@@ -227,6 +235,47 @@
                 android:layout_marginTop="12dp"
                 android:lineSpacingExtra="4dp"
                 android:text="@string/option_priority_body"
+                android:textColor="@color/muted"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <!-- Floating button -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="20dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:baselineAligned="false"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/Label"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/option_hide_button_title" />
+
+                <TextView
+                    android:id="@+id/btn_hide_button"
+                    style="@style/Pill"
+                    android:layout_width="80dp"
+                    android:layout_height="36dp"
+                    android:text="@string/off" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:lineSpacingExtra="4dp"
+                android:text="@string/option_hide_button_body"
                 android:textColor="@color/muted"
                 android:textSize="13sp" />
         </LinearLayout>

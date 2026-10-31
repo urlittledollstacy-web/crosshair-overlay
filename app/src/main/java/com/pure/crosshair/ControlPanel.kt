@@ -15,7 +15,6 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
-import android.widget.GridLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.SeekBar
@@ -126,6 +125,17 @@ class ControlPanel(
             }
         }
 
+        b.reticleScroll.post {
+            val index = CrosshairCatalog.all.indexOfFirst { it.id == prefs.selected }
+            val child = b.reticleRow.getChildAt(index)
+            if (child != null) {
+                b.reticleScroll.scrollTo(
+                    (child.left - b.reticleScroll.width / 2 + child.width / 2).coerceAtLeast(0),
+                    0
+                )
+            }
+        }
+
         b.panelCard.post {
             b.panelCard.translationY = b.panelCard.height.toFloat()
             b.panelCard.alpha = 0f
@@ -204,29 +214,22 @@ class ControlPanel(
     // ---------------------------------------------------------------- internals
 
     /**
-     * The crosshair grid.
+     * The reticle strip.
      *
-     * Cell width is derived from the screen rather than measured, so the grid lays out
-     * correctly on the first frame instead of reflowing once it has been attached.
+     * One scrolling row rather than a grid. A grid of all 35 tiles was taller than every other
+     * control put together, which pushed the sliders below the fold and made the panel read as
+     * a wall of thumbnails instead of a tuning surface.
      */
     private fun buildPicker(b: OverlayPanelBinding) {
         val themed = this.themed ?: return
-        val gap = context.dp(GRID_GAP_DP)
-        val available = context.screenSize().x - context.dp(PANEL_INSET_DP)
-        val cell = ((available - gap * (GRID_COLUMNS - 1)) / GRID_COLUMNS)
-            .coerceAtLeast(context.dp(40))
+        val gap = context.dp(8)
+        val cell = context.dp(RETICLE_CELL_DP)
 
-        b.pickerGrid.removeAllViews()
-        b.pickerGrid.columnCount = GRID_COLUMNS
+        b.reticleRow.removeAllViews()
 
         for (model in CrosshairCatalog.all) {
             val tile = ImageView(themed).apply {
-                layoutParams = GridLayout.LayoutParams().apply {
-                    width = cell
-                    height = cell
-                    marginEnd = gap
-                    bottomMargin = gap
-                }
+                layoutParams = LinearLayout.LayoutParams(cell, cell).also { it.marginEnd = gap }
                 setPadding(context.dp(8), context.dp(8), context.dp(8), context.dp(8))
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 setImageDrawable(model.drawable(prefs.crosshairColor))
@@ -239,7 +242,7 @@ class ControlPanel(
                     callbacks.onConfigChanged()
                 }
             }
-            b.pickerGrid.addView(tile)
+            b.reticleRow.addView(tile)
         }
     }
 
@@ -282,7 +285,7 @@ class ControlPanel(
     private fun updatePickerSelection(b: OverlayPanelBinding) {
         val models = CrosshairCatalog.all
         for (i in models.indices) {
-            b.pickerGrid.getChildAt(i)?.isSelected = models[i].id == prefs.selected
+            b.reticleRow.getChildAt(i)?.isSelected = models[i].id == prefs.selected
         }
         // Swatches sit in the same order as the palette, so index lookup is enough.
         val colorIndex = CrosshairColors.all.indexOfFirst { it.second == prefs.crosshairColor }
@@ -291,10 +294,16 @@ class ControlPanel(
         }
         // Tiles are tinted at build time, so a colour change means redrawing them.
         for (i in models.indices) {
-            (b.pickerGrid.getChildAt(i) as? ImageView)
+            (b.reticleRow.getChildAt(i) as? ImageView)
                 ?.setImageDrawable(models[i].drawable(prefs.crosshairColor))
         }
-        b.valueCrosshair.text = CrosshairCatalog.name(prefs.selected)
+
+        // The header mark is the reticle you actually have selected, in the colour you
+        // actually chose. It is the one place the panel shows the product rather than
+        // describing it, and it updates as you change either.
+        val model = CrosshairCatalog.byId(prefs.selected) ?: CrosshairCatalog.default
+        b.panelMark.setImageDrawable(model.drawable(prefs.crosshairColor))
+        b.valueCrosshair.text = model.name
     }
 
     private fun wireControls(b: OverlayPanelBinding) {
@@ -465,11 +474,8 @@ class ControlPanel(
          *  through the range people actually use. */
         private const val SIZE_STEPS = 1000
 
-        /** Margins plus content padding the panel takes off the screen width. */
-        private const val PANEL_INSET_DP = 24 + 32
-
-        private const val GRID_COLUMNS = 5
-        private const val GRID_GAP_DP = 8
+        /** Reticle tile edge in the strip. */
+        private const val RETICLE_CELL_DP = 48
 
         /** Tallest the panel may get before the card starts scrolling. */
         private const val MAX_HEIGHT_FRACTION = 0.86f

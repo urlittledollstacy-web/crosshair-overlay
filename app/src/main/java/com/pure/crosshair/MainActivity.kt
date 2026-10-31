@@ -44,6 +44,25 @@ class MainActivity : AppCompatActivity() {
         binding.btnChoose.setOnClickListener { showCrosshairPicker() }
         binding.btnPrimary.setOnClickListener { onPrimaryClicked() }
         binding.btnPriority.setOnClickListener { onPriorityClicked() }
+        binding.btnOpenPanel.setOnClickListener {
+            val overlay = Bridge.overlay
+            if (overlay == null) {
+                Toast.makeText(this, R.string.panel_unavailable, Toast.LENGTH_SHORT).show()
+            } else {
+                overlay.openPanel()
+            }
+        }
+        binding.btnHideButton.setOnClickListener {
+            val overlay = Bridge.overlay
+            if (overlay != null) {
+                // Goes through the service so the button window is added or removed at once.
+                overlay.setButtonHidden(!prefs.buttonHidden)
+            } else {
+                // Overlay is not running, so just record it for the next start.
+                prefs.buttonHidden = !prefs.buttonHidden
+            }
+            refresh()
+        }
         binding.btnSnap.setOnClickListener {
             prefs.snapButtonToEdge = !prefs.snapButtonToEdge
             refresh()
@@ -101,6 +120,12 @@ class MainActivity : AppCompatActivity() {
                 else -> R.string.setup
             }
         )
+
+        binding.btnHideButton.isSelected = prefs.buttonHidden
+        binding.btnHideButton.setText(if (prefs.buttonHidden) R.string.on else R.string.off)
+        // The button is what opens the panel, so with it hidden this is the way back in.
+        binding.btnSnap.alpha = if (prefs.buttonHidden) 0.5f else 1f
+        binding.btnSnap.isEnabled = !prefs.buttonHidden
 
         binding.btnSnap.isSelected = prefs.snapButtonToEdge
         binding.btnSnap.setText(if (prefs.snapButtonToEdge) R.string.on else R.string.off)

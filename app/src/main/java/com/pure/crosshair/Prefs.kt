@@ -69,6 +69,14 @@ class Prefs(context: Context) {
         get() = sp.getInt(KEY_BTN_Y + orientation, Int.MIN_VALUE)
         set(value) = sp.edit { putInt(KEY_BTN_Y + orientation, value) }
 
+    /**
+     * Hides the floating button so a stray tap cannot open the panel mid-game. The panel is
+     * then reachable from the notification and from the main screen, and both say so.
+     */
+    var buttonHidden: Boolean
+        get() = sp.getBoolean(KEY_BTN_HIDDEN, false)
+        set(value) = sp.edit { putBoolean(KEY_BTN_HIDDEN, value) }
+
     /** When off, the floating button stays wherever it is dropped, including mid screen. */
     var snapButtonToEdge: Boolean
         get() = sp.getBoolean(KEY_SNAP, false)
@@ -111,5 +119,6 @@ class Prefs(context: Context) {
         private const val KEY_BOOT = "start_on_boot"
         private const val KEY_MAX_PRIORITY = "max_priority"
         private const val KEY_SNAP = "snap_button"
+        private const val KEY_BTN_HIDDEN = "button_hidden"
     }
 }

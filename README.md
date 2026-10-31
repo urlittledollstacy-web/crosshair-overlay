@@ -6,7 +6,8 @@ using, and it never takes a tap — even at 100% opacity.
 - **Always click through.** The crosshair window carries `FLAG_NOT_TOUCHABLE`, so touches land on
   the app underneath at every opacity setting. It is a purely visual layer.
 - **Floating control button.** A draggable sigil sits on top of everything. Tap it to tune
-  position, size and opacity live, without leaving the app you are in.
+  reticle, colour, position, size and opacity live, without leaving the app you are in. It can
+  be hidden if you keep catching it mid-game.
 - **35 built-in crosshairs**, drawn as vectors so they stay sharp at any size. Pick one from
 the panel or from the picker in the app; no image files to import.
 - **Minimum Android 8.0** (API 26).
@@ -64,6 +65,7 @@ Open the folder in Android Studio and hit Run, or:
 | Tap the floating sigil | Opens the tuning panel |
 | Drag the floating sigil | Moves it; it snaps to the nearest edge |
 | Long press the floating sigil | Shows or hides the crosshair |
+| Hide the floating button | Removes it entirely, so a stray tap cannot open the panel |
 | Crosshair row in the panel | Switches reticle, live |
 | Choose crosshair on the main screen | Opens the full picker, with colour |
 | **Move** in the panel | Makes the crosshair draggable until you tap **Done** |
@@ -151,6 +153,19 @@ independent of the catalog, so adding a crosshair never changes the app icon.
 | `POST_NOTIFICATIONS` | The control notification. Denying it only costs you that notification |
 | `RECEIVE_BOOT_COMPLETED` | Only used if you turn on "Start after reboot" |
 | `VIBRATE` | Haptic tick on long press |
+
+## Hiding the floating button
+
+If you keep hitting the button by mistake while playing, turn on **Hide the floating button**
+on the main screen. The button window is removed rather than made invisible, so there is
+nothing on screen to catch a tap, and the crosshair itself is untouched.
+
+The panel is still reachable two ways:
+
+- **Open the tuning panel** on the main screen.
+- The notification, whose **Show button** action brings the button back.
+
+The notification text says the button is hidden, so the state is never a mystery.
 
 Nothing leaves the device. There is no network permission, so the app cannot talk to anything.
 
