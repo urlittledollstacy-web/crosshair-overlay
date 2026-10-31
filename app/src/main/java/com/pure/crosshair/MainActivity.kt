@@ -64,7 +64,7 @@ class MainActivity : AppCompatActivity() {
 
         binding.permissionState.text = getString(if (granted) R.string.perm_granted else R.string.perm_missing)
         binding.permissionState.setTextColor(
-            ContextCompat.getColor(this, if (granted) R.color.ice else R.color.danger)
+            ContextCompat.getColor(this, if (granted) R.color.accent else R.color.danger)
         )
         binding.btnGrant.visibility = if (granted) View.GONE else View.VISIBLE
         binding.permissionBody.visibility = if (granted) View.GONE else View.VISIBLE
@@ -74,15 +74,17 @@ class MainActivity : AppCompatActivity() {
             if (running) R.drawable.bg_cta_ghost else R.drawable.bg_cta
         )
         binding.btnPrimary.setTextColor(
-            if (running) ContextCompat.getColor(this, R.color.text) else 0xFF120A1C.toInt()
+            ContextCompat.getColor(this, if (running) R.color.text else R.color.on_accent)
         )
         binding.btnPrimary.isEnabled = granted
         binding.btnPrimary.alpha = if (granted) 1f else 0.4f
 
         val images = library.list().size
-        binding.libraryCount.text =
-            if (images == 0) getString(R.string.library_none)
-            else getString(R.string.library_n, images)
+        binding.libraryCount.text = when (images) {
+            0 -> getString(R.string.library_none)
+            1 -> getString(R.string.library_one)
+            else -> getString(R.string.library_n, images)
+        }
 
         binding.statusLine.setText(
             when {
@@ -91,6 +93,7 @@ class MainActivity : AppCompatActivity() {
                 else -> R.string.not_running
             }
         )
+        binding.statusDot.visibility = if (running) View.VISIBLE else View.GONE
 
         val priorityOn = prefs.maxPriority && isMaxPriorityEnabled()
         binding.btnPriority.isSelected = priorityOn

@@ -2,20 +2,17 @@
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:id="@android:id/background">
         <shape android:shape="rectangle">
-            <corners android:radius="3dp" />
+            <corners android:radius="2dp" />
             <solid android:color="@color/track" />
-            <size android:height="6dp" />
+            <size android:height="4dp" />
         </shape>
     </item>
     <item android:id="@android:id/progress">
         <clip>
             <shape android:shape="rectangle">
-                <corners android:radius="3dp" />
-                <gradient
-                    android:angle="0"
-                    android:endColor="@color/accent"
-                    android:startColor="@color/accent_soft" />
-                <size android:height="6dp" />
+                <corners android:radius="2dp" />
+                <solid android:color="@color/accent" />
+                <size android:height="4dp" />
             </shape>
         </clip>
     </item>

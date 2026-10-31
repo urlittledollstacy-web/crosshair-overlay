@@ -31,7 +31,7 @@
     <!-- Panel -->
     <string name="panel_title">Crosshair</string>
     <string name="close">Close</string>
-    <string name="label_style">Crosshair</string>
+    <string name="label_style">Style</string>
     <string name="label_size">Size</string>
     <string name="label_opacity">Opacity</string>
     <string name="label_x">Horizontal</string>
@@ -75,6 +75,7 @@
     <string name="import_failed">That file could not be read as an image.</string>
     <string name="import_no_picker">No file picker available on this device.</string>
     <string name="library_none">None yet</string>
+    <string name="library_one">1 imported</string>
     <string name="library_n">%1$d imported</string>
     <string name="need_an_image">Import an image to get started</string>
 </resources>

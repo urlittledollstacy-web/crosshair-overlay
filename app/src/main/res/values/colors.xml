@@ -1,22 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Palette pulled from the sigil artwork: void black, violet, magenta, ice. -->
-    <color name="void_bg">#07060C</color>
-    <color name="surface">#14101F</color>
-    <color name="surface_high">#1D1730</color>
-    <color name="panel">#F2110D1A</color>
+    <!-- Ink ramp: cool graphite surfaces, one desaturated accent taken from the sigil artwork. -->
+    <color name="void_bg">#0B0C11</color>
+    <color name="surface">#11131B</color>
+    <color name="panel">#F011131B</color>
 
-    <color name="accent">#FF6EC7</color>
-    <color name="accent_soft">#B57BFF</color>
-    <color name="ice">#8FD9FF</color>
+    <color name="accent">#C6A9F2</color>
+    <color name="accent_pressed">#B494E6</color>
+    <color name="on_accent">#17122A</color>
+    <color name="readout">#C7D0DE</color>
 
-    <color name="text">#EFEAF9</color>
-    <color name="muted">#8B83A8</color>
-    <color name="danger">#FF5C7A</color>
+    <color name="text">#EEF1F7</color>
+    <color name="muted">#97A1B4</color>
+    <color name="danger">#E06B79</color>
 
-    <color name="hairline">#33B57BFF</color>
-    <color name="track">#26FFFFFF</color>
+    <color name="hairline">#14FFFFFF</color>
+    <color name="track">#1FFFFFFF</color>
     <color name="ghost">#14FFFFFF</color>
     <color name="ghost_high">#22FFFFFF</color>
-    <color name="thumb_selected">#33FF6EC7</color>
+    <color name="raised">#1FFFFFFF</color>
 </resources>
